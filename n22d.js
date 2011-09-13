@@ -12,34 +12,130 @@ function go() {
             canvasData.data[idx + 3] = 255;
         }
     }
+
+    var draw_fn = function(point) {
+        var x = point.a[1] + canvas.width/2;
+        var y = point.a[2] + canvas.height/2;
+        if (x < 0 || x >= canvas.width)
+            return;
+        if (y < 0 || y >= canvas.height)
+            return;
+        var idx = (x + y * canvas.width) * 4;
+        canvasData.data[idx + 0] = 0;
+        canvasData.data[idx + 1] = 0;
+        canvasData.data[idx + 2] = 0;
+        canvasData.data[idx + 3] = 255;
+    };
+    var t = new Triangle([
+        new Vector([-10, 10, 1]),
+        new Vector([10, 10, 1]),
+        new Vector([0, -10, 1])
+    ])
+    t.draw(draw_fn);
     ctx.putImageData(canvasData, 0, 0);
 }
 
-// acts as I outside the bounds of a
-function Operator(a) {
-    this.a = a.slice();
-    for (var i = 0; i < a.length; i++) {
-        a[i] = a[i].slice();
-    }
+function Matrix(a) {
+    this.a = a;
+    assert(this.rows());
+    assert(this.cols());
 }
 
-Operator.prototype.times = function(o) {
-    assert(a.length);
-    assert(o.length);
-    var a = new Array(Math.max(this.a.length, o.a[0].length));
-    var width = Math.max(this.a[0].length, o.length);
-    for (var i = 0; i < a.length; i++) {
-        a[i] = new Array(width);
+// just put this in the constructor
+function newMatrixHW(h, w) {
+    var r = new Array(h);
+    for (var i = 0; i < h; i++) {
+        r[i] = new Array(w);
     }
+    return new Matrix(r);
+}
 
-    for (var i = 0; i < a.length; i++) {
-        for (var j = 0; j < width; j++) {
-            a[i][j] = 0;
-            // XXX
+function newMatrixI(h, w) {
+    var m = newMatrixHW(h, w);
+    for (var i = 0; i < h; i++) {
+        for (var j = 0; j < w; j++) {
+            m.a[i][j] = i==j ? 1 : 0;
         }
+    }
+    return m
+}
+
+Matrix.prototype.rows = function() {
+    return this.a.length;
+};
+
+Matrix.prototype.cols = function() {
+    return this.a[0].length;
+};
+
+Matrix.prototype.times = function(o) {
+    if (o instanceof Matrix) {
+        assert(this.cols() == o.rows());
+        var m = newMatrixHW(this.rows(), o.cols());
+        var r = m.a;
+        for (var i = 0; i < r.length; i++) {
+            for (var j = 0; j < r[0].length; j++) {
+                r[i][j] = 0;
+                for (var k = 0; k < o.length; k++) {
+                    r[i][j] += this.a[i][k] * o.a[k][j];
+                }
+            }
+        }
+        return m;
+    } else if (o instanceof Vector) {
+        assert(this.cols() == o.a.length);
+        var a = new Array(this.a.length);
+        for (var i = 0; i < this.a.length; i++) {
+            a[i] = 0;
+            for (var j = 0; j < o.a.length; j++) {
+                a[i] += this.a[i][j] * o.a[j];
+            }
+        }
+    } else {
+        assert(false);
     }
 };
 
+// obviously not actually infinite
+// acts as I outside the explicitly defined area
+function InfiniteMatrix(matrix) {
+    this.m = matrix;
+}
+
+function newTranslation(vector) {
+    var m = newMatrixI(vector.a.length + 1, 1);
+    m.a[0][0] = 1;
+    for (var i = 0; i < vector.a.length; i++) {
+        m.a[i+1][0] = vector.a[i];
+    }
+    return new InfiniteMatrix(m);
+}
+
+InfiniteMatrix._squarify = function(matrix, size) {
+    var r = newMatrixI(size, size);
+    var copy_h = Math.min(size, matrix.rows());
+    var copy_w = Math.min(size, matrix.cols());
+    for (var i = 0; i < copy_h; i++) {
+        for (var j = 0; j < copy_w; j++) {
+            r.a[i][j] = matrix.a[i][j];
+        }
+    }
+    return r;
+};
+
+InfiniteMatrix.prototype.times = function(o) {
+    if (o instanceof InfiniteMatrix) {
+        var size = Math.max(this.a.rows(), this.a.cols(), o.a.rows(), o.a.cols());
+        var a = InfiniteMatrix._squarify(this.m, size);
+        var b = InfiniteMatrix._squarify(o.m, size);
+        return new InfiniteMatrix(a.times(b));
+    } else {
+        var a = InfiniteMatrix._squarify(o.a.length);
+        return a.times(o);
+    }
+};
+
+// "infinite" (0 outside of explicitly defined area)
 function Vector(a) {
     this.a = a.slice();
 }
@@ -64,15 +160,61 @@ Vector.prototype.plus = function(v) {
 };
 
 function Triangle(vs) {
+    assert(vs.length == 3);
     this.vs = vs;
+    for (var i = 0; i < vs.length; i++) { // XXX doesn't belong here
+        // this extra dimension is so that translation can be implemented
+        // as a matrix multiplication
+        vs[i].a.unshift(1);
+    }
 }
 
-// array of {0,1}^n
+Triangle.prototype.transform = function(transform) {
+    var vs = new Array(this.vs.length);
+    for (var i = 0; i < vs.length; i++) {
+        vs[i] = transform.times(this.vs[i]);
+    }
+    return new Triangle(vs);
+};
+
+Triangle.prototype.draw = function(draw_fn) {
+    for (var i = 0; i < this.vs.length; i++) {
+        // perspective projection
+        this.vs[i].a[1] /= this.vs[i].a[3];
+        this.vs[i].a[2] /= this.vs[i].a[3];
+    }
+    // bounding box
+    var left = Math.floor(Math.min(this.vs[0].a[1], this.vs[1].a[1], this.vs[2].a[1]));
+    var right = Math.ceil(Math.max(this.vs[0].a[1], this.vs[1].a[1], this.vs[2].a[1]));
+    var top_ = Math.floor(Math.min(this.vs[0].a[2], this.vs[1].a[2], this.vs[2].a[2]));
+    var bottom = Math.ceil(Math.max(this.vs[0].a[2], this.vs[1].a[2], this.vs[2].a[2]));
+
+    var p = new Vector([1, 0, 0]);
+    for (p.a[1] = left; p.a[1] < right; p.a[1]++) {
+        for (p.a[2] = top_; p.a[2] < bottom; p.a[2]++) {
+            // yeah this is dumb. I'm lazy and I don't like doing things the
+            // normal way (plane sweep or whatever)
+            if (same_side(this.vs[0], this.vs[1], this.vs[2], p) &&
+                same_side(this.vs[0], this.vs[2], this.vs[1], p) &&
+                same_side(this.vs[1], this.vs[2], this.vs[0], p)) {
+                draw_fn(p);
+            }
+        }
+    }
+};
+
+function same_side(a, b, p, q) {
+    // I think doesn't work when three of the points form a line
+    var w = (b.a[2]-a.a[2])*(p.a[1]-a.a[1]) - (p.a[2]-a.a[2])*(b.a[1]-a.a[1]);
+    var v = (b.a[2]-a.a[2])*(q.a[1]-a.a[1]) - (q.a[2]-a.a[2])*(b.a[1]-a.a[1]);
+    return w*v >= 0;
+}
+
+// array of {0,1}^n (not actually permutations)
+// maybe better to convert ints 0-2^n-1 to binary
 function permutations(n) {
     if (n == 0) {
-        return [];
-    } else if (n == 1) {
-        return [[0], [1]];
+        return [[]];
     }
     var p = permutations(n - 1);
     var q = [];
@@ -87,7 +229,23 @@ function permutations(n) {
     return q;
 }
 
-function hypercube(n) { // only works for n >= 3
+function Model(triangles) {
+    this.triangles = triangles;
+    this.position = new Vector([]);
+    this.rotation = new InfiniteMatrix(new Matrix([[1]]));
+}
+
+// transform all triangles for rendering
+Model.transform = function(rotation) {
+    var translation = newTranslation(this.position);
+    var transform = rotation.times(translation.times(this.rotation));
+    var new_triangles = new Array(this.triangles.length);
+    for (var i = 0; i < this.triangles.length; i++) {
+        new_triangles[i] = this.triangles[i].transform(transform);
+    }
+};
+
+function hypercube(n) { // only works for n >= 2 (because it makes polygons)
     var triangles = [];
     var ps = permutations(n - 2);
     for (var i = 0; i < n; i++) {
@@ -103,7 +261,7 @@ function hypercube(n) { // only works for n >= 3
             }
         }
     }
-    return triangles;
+    return new Model(triangle);
 }
 
 function hypercube_face(v, i, j) {
