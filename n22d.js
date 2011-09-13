@@ -6,14 +6,14 @@ function go() {
         for (var y = 0; y < canvasData.height; y++) {
             // Index of the pixel in the array
             var idx = (x + y * canvas.width) * 4;
-            canvasData.data[idx + 0] = 0;
+            canvasData.data[idx + 0] = 255;
             canvasData.data[idx + 1] = 255;
-            canvasData.data[idx + 2] = 0;
+            canvasData.data[idx + 2] = 255;
             canvasData.data[idx + 3] = 255;
         }
     }
 
-    var draw_fn = function(point) {
+    var draw_fn = function(point, surface_colour) {
         var x = point.a[1] + canvas.width/2;
         var y = point.a[2] + canvas.height/2;
         if (x < 0 || x >= canvas.width)
@@ -21,19 +21,27 @@ function go() {
         if (y < 0 || y >= canvas.height)
             return;
         var idx = (x + y * canvas.width) * 4;
-        canvasData.data[idx + 0] = 0;
-        canvasData.data[idx + 1] = 0;
-        canvasData.data[idx + 2] = 0;
+        canvasData.data[idx + 0] = surface_colour.a[0];
+        canvasData.data[idx + 1] = surface_colour.a[1];
+        canvasData.data[idx + 2] = surface_colour.a[2];
         canvasData.data[idx + 3] = 255;
     };
     var t = new Triangle([
-        new Vector([-10, 10, 1]),
-        new Vector([10, 10, 1]),
-        new Vector([0, -10, 1])
-    ])
+            new Vector([-100, 100, 300]),
+            new Vector([100, 100, 400]),
+            new Vector([0, -100, 200])
+        ],
+        new Colour(0, 0, 255)
+    )
     t.draw(draw_fn);
     ctx.putImageData(canvasData, 0, 0);
 }
+
+function Colour(r, g, b) {
+    this.a = [r, g, b];
+}
+// I guess this means Vector methods should use this.constructor()
+Colour.prototype = new Vector([0]);
 
 function Matrix(a) {
     this.a = a;
@@ -148,6 +156,15 @@ Vector.prototype.dot = function(v) {
     return r;
 };
 
+// l2 norm
+Vector.prototype.norm = function() {
+    return Math.sqrt(this.dot(this));
+};
+
+Vector.prototype.normalize = function() {
+    return this.divide(this.norm());
+};
+
 Vector.prototype.plus = function(v) {
     if (v.a.length > this.a.length) {
         return v.plus(this);
@@ -159,9 +176,38 @@ Vector.prototype.plus = function(v) {
     return r;
 };
 
-function Triangle(vs) {
+Vector.prototype.minus = function(v) {
+    return this.plus(v.negate());
+};
+
+Vector.prototype.negate = function() {
+    return this.times(-1);
+};
+
+Vector.prototype.proj = function(onto) {
+    return onto.times(this.dot(onto) / onto.dot(onto));
+};
+
+Vector.prototype.times = function(constant) {
+    var r = new Vector(this.a);
+    for (var i = 0; i < r.a.length; i++) {
+        r.a[i] *= constant;
+    }
+    return r;
+};
+
+Vector.prototype.divide = function(constant) {
+    var r = new Vector(this.a);
+    for (var i = 0; i < r.a.length; i++) {
+        r.a[i] /= constant;
+    }
+    return r;
+};
+
+function Triangle(vs, colour) {
     assert(vs.length == 3);
     this.vs = vs;
+    this.colour = colour
     for (var i = 0; i < vs.length; i++) { // XXX doesn't belong here
         // this extra dimension is so that translation can be implemented
         // as a matrix multiplication
@@ -174,14 +220,28 @@ Triangle.prototype.transform = function(transform) {
     for (var i = 0; i < vs.length; i++) {
         vs[i] = transform.times(this.vs[i]);
     }
-    return new Triangle(vs);
+    return new Triangle(vs, this.colour);
+};
+
+// cos(angle between light and surface normal)
+Triangle.prototype.diffuse_factor = function(light) {
+    // orthonormal basis for the surface of this triangle. should compute
+    // at a higher level in the call tree
+    var a = this.vs[0].minus(this.vs[2]).normalize();
+    var b = this.vs[1].minus(this.vs[2]);
+    var b = b.minus(b.proj(a)).normalize();
+    var normal = light.minus(light.proj(a)).minus(light.proj(b)).normalize();
+    return normal.dot(light.normalize());
+    // later will have to worry about light being behind the surface
 };
 
 Triangle.prototype.draw = function(draw_fn) {
+    var plane_z = 200;
     for (var i = 0; i < this.vs.length; i++) {
         // perspective projection
-        this.vs[i].a[1] /= this.vs[i].a[3];
-        this.vs[i].a[2] /= this.vs[i].a[3];
+        this.vs[i].a[1] *= plane_z / this.vs[i].a[3];
+        this.vs[i].a[2] *= plane_z / this.vs[i].a[3];
+        this.vs[i].a[3] = plane_z;
     }
     // bounding box
     var left = Math.floor(Math.min(this.vs[0].a[1], this.vs[1].a[1], this.vs[2].a[1]));
@@ -189,7 +249,7 @@ Triangle.prototype.draw = function(draw_fn) {
     var top_ = Math.floor(Math.min(this.vs[0].a[2], this.vs[1].a[2], this.vs[2].a[2]));
     var bottom = Math.ceil(Math.max(this.vs[0].a[2], this.vs[1].a[2], this.vs[2].a[2]));
 
-    var p = new Vector([1, 0, 0]);
+    var p = new Vector([0, 0, 0, plane_z]);
     for (p.a[1] = left; p.a[1] < right; p.a[1]++) {
         for (p.a[2] = top_; p.a[2] < bottom; p.a[2]++) {
             // yeah this is dumb. I'm lazy and I don't like doing things the
@@ -197,7 +257,10 @@ Triangle.prototype.draw = function(draw_fn) {
             if (same_side(this.vs[0], this.vs[1], this.vs[2], p) &&
                 same_side(this.vs[0], this.vs[2], this.vs[1], p) &&
                 same_side(this.vs[1], this.vs[2], this.vs[0], p)) {
-                draw_fn(p);
+                // passing p like this hardcodes a light source at the same
+                // position as the camera
+                var diffuse_factor = this.diffuse_factor(p);
+                draw_fn(p, this.colour.times(diffuse_factor));
             }
         }
     }
@@ -274,7 +337,7 @@ function hypercube_face(v, i, j) {
     ];
     a[1][i] = 1;
     a[2][j] = 1;
-    a = new Triangle(a);
+    a = new Triangle(a, new Colour(0, 0, 0));
 
     var b = [
         v.slice(),
@@ -284,7 +347,7 @@ function hypercube_face(v, i, j) {
     b[0][i] = b[0][j] = 1;
     b[1][i] = 1;
     b[2][j] = 1;
-    b = new Triangle(b);
+    b = new Triangle(b, new Colour(0, 0, 0));
 
     return [a, b];
 }
