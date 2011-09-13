@@ -27,13 +27,15 @@ function go() {
         canvasData.data[idx + 3] = 255;
     };
     var t = new Triangle([
-            new Vector([-100, 100, 300]),
-            new Vector([100, 100, 400]),
-            new Vector([0, -100, 200])
+            new Vector([-1000, 1000, 300]),
+            new Vector([2000, 2000, 700]),
+            new Vector([0, -1000, 200])
         ],
         new Colour(0, 0, 255)
     )
-    t.draw(draw_fn);
+    var plane = t.plane();
+    t.perspective_project(20);
+    t.draw(draw_fn, plane);
     ctx.putImageData(canvasData, 0, 0);
 }
 
@@ -215,6 +217,20 @@ function Triangle(vs, colour) {
     }
 }
 
+// just the 2d kind
+function Plane(a, b) {
+    // orthonormal basis
+    this.a = a = a.normalize();
+    this.b = b.minus(b.proj(a)).normalize();
+}
+
+// cos(angle between light and surface normal)
+Plane.prototype.diffuse_factor = function(light) {
+    var normal = light.minus(light.proj(this.a)).minus(light.proj(this.b));
+    return normal.normalize().dot(light.normalize());
+    // later will have to worry about light being behind the surface
+};
+
 Triangle.prototype.transform = function(transform) {
     var vs = new Array(this.vs.length);
     for (var i = 0; i < vs.length; i++) {
@@ -223,33 +239,30 @@ Triangle.prototype.transform = function(transform) {
     return new Triangle(vs, this.colour);
 };
 
-// cos(angle between light and surface normal)
-Triangle.prototype.diffuse_factor = function(light) {
-    // orthonormal basis for the surface of this triangle. should compute
-    // at a higher level in the call tree
-    var a = this.vs[0].minus(this.vs[2]).normalize();
-    var b = this.vs[1].minus(this.vs[2]);
-    var b = b.minus(b.proj(a)).normalize();
-    var normal = light.minus(light.proj(a)).minus(light.proj(b)).normalize();
-    return normal.dot(light.normalize());
-    // later will have to worry about light being behind the surface
-};
-
-Triangle.prototype.draw = function(draw_fn) {
-    var plane_z = 200;
+Triangle.prototype.perspective_project = function(plane_z) {
     for (var i = 0; i < this.vs.length; i++) {
-        // perspective projection
         this.vs[i].a[1] *= plane_z / this.vs[i].a[3];
         this.vs[i].a[2] *= plane_z / this.vs[i].a[3];
         this.vs[i].a[3] = plane_z;
     }
+}
+
+Triangle.prototype.plane = function() {
+    var a = this.vs[0].minus(this.vs[2]);
+    var b = this.vs[1].minus(this.vs[2]);
+    return new Plane(a, b);
+};
+
+Triangle.prototype.draw = function(draw_fn, plane) {
     // bounding box
+    // TODO clip to canvas, z-buffer, correct on triangle borders?
     var left = Math.floor(Math.min(this.vs[0].a[1], this.vs[1].a[1], this.vs[2].a[1]));
     var right = Math.ceil(Math.max(this.vs[0].a[1], this.vs[1].a[1], this.vs[2].a[1]));
     var top_ = Math.floor(Math.min(this.vs[0].a[2], this.vs[1].a[2], this.vs[2].a[2]));
     var bottom = Math.ceil(Math.max(this.vs[0].a[2], this.vs[1].a[2], this.vs[2].a[2]));
 
-    var p = new Vector([0, 0, 0, plane_z]);
+    // wrong: need to compute the actual point we are looking at on the plane
+    var p = new Vector([0, 0, 0, this.vs[0].a[3]]);
     for (p.a[1] = left; p.a[1] < right; p.a[1]++) {
         for (p.a[2] = top_; p.a[2] < bottom; p.a[2]++) {
             // yeah this is dumb. I'm lazy and I don't like doing things the
@@ -259,7 +272,7 @@ Triangle.prototype.draw = function(draw_fn) {
                 same_side(this.vs[1], this.vs[2], this.vs[0], p)) {
                 // passing p like this hardcodes a light source at the same
                 // position as the camera
-                var diffuse_factor = this.diffuse_factor(p);
+                var diffuse_factor = plane.diffuse_factor(p);
                 draw_fn(p, this.colour.times(diffuse_factor));
             }
         }
@@ -267,9 +280,10 @@ Triangle.prototype.draw = function(draw_fn) {
 };
 
 function same_side(a, b, p, q) {
+    var ab = b.minus(a);
     // I think doesn't work when three of the points form a line
-    var w = (b.a[2]-a.a[2])*(p.a[1]-a.a[1]) - (p.a[2]-a.a[2])*(b.a[1]-a.a[1]);
-    var v = (b.a[2]-a.a[2])*(q.a[1]-a.a[1]) - (q.a[2]-a.a[2])*(b.a[1]-a.a[1]);
+    var w = ab.a[2]*(p.a[1]-a.a[1]) - ab.a[1]*(p.a[2]-a.a[2]);
+    var v = ab.a[2]*(q.a[1]-a.a[1]) - ab.a[1]*(q.a[2]-a.a[2]);
     return w*v >= 0;
 }
 
