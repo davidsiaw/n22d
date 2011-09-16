@@ -27,15 +27,13 @@ function go() {
         canvasData.data[idx + 3] = 255;
     };
     var t = new Triangle([
-            new Vector([-1000, 1000, 300]),
-            new Vector([2000, 2000, 700]),
-            new Vector([0, -1000, 200])
+            new Vector([1, -1000, 1000, 200]),
+            new Vector([1, 1000, 1000, 200]),
+            new Vector([1, 0, -1000, 200])
         ],
         new Colour(0, 0, 255)
     )
-    var plane = t.plane();
-    t.perspective_project(20);
-    t.draw(draw_fn, plane);
+    t.perspective_project(20).draw(draw_fn, t);
     ctx.putImageData(canvasData, 0, 0);
 }
 
@@ -206,19 +204,25 @@ Vector.prototype.divide = function(constant) {
     return r;
 };
 
-function Triangle(vs, colour) {
-    assert(vs.length == 3);
-    this.vs = vs;
-    this.colour = colour
-    for (var i = 0; i < vs.length; i++) { // XXX doesn't belong here
-        // this extra dimension is so that translation can be implemented
-        // as a matrix multiplication
-        vs[i].a.unshift(1);
-    }
-}
+Vector.prototype.perspective_project = function(plane_z) {
+    var v = this.times(plane_z / this.a[3]);
+    v.a[0] = 1;
+    return v;
+};
+
+Vector.prototype.equals = function(v) {
+    // not consistent with Vector's "infiniteness":
+    if (this.a.length != v.a.length)
+        return false;
+    for (var i = 0; i < this.a.length; i++)
+        if (this.a[i] != v.a[i])
+            return false;
+    return true;
+};
 
 // just the 2d kind
-function Plane(a, b) {
+function Plane(p, a, b) {
+    this.p = p;
     // orthonormal basis
     this.a = a = a.normalize();
     this.b = b.minus(b.proj(a)).normalize();
@@ -231,6 +235,12 @@ Plane.prototype.diffuse_factor = function(light) {
     // later will have to worry about light being behind the surface
 };
 
+function Triangle(vs, colour) {
+    assert(vs.length == 3);
+    this.vs = vs;
+    this.colour = colour
+}
+
 Triangle.prototype.transform = function(transform) {
     var vs = new Array(this.vs.length);
     for (var i = 0; i < vs.length; i++) {
@@ -240,20 +250,21 @@ Triangle.prototype.transform = function(transform) {
 };
 
 Triangle.prototype.perspective_project = function(plane_z) {
+    var vs = new Array(3);
     for (var i = 0; i < this.vs.length; i++) {
-        this.vs[i].a[1] *= plane_z / this.vs[i].a[3];
-        this.vs[i].a[2] *= plane_z / this.vs[i].a[3];
-        this.vs[i].a[3] = plane_z;
+        vs[i] = this.vs[i].perspective_project(plane_z);
     }
+    return new Triangle(vs, this.colour);
 }
 
 Triangle.prototype.plane = function() {
     var a = this.vs[0].minus(this.vs[2]);
     var b = this.vs[1].minus(this.vs[2]);
-    return new Plane(a, b);
+    return new Plane(this.vs[0], a, b);
 };
 
-Triangle.prototype.draw = function(draw_fn, plane) {
+Triangle.prototype.draw = function(draw_fn, unprojected) {
+    var plane = unprojected.plane();
     // bounding box
     // TODO clip to canvas, z-buffer, correct on triangle borders?
     var left = Math.floor(Math.min(this.vs[0].a[1], this.vs[1].a[1], this.vs[2].a[1]));
@@ -329,9 +340,11 @@ function hypercube(n) { // only works for n >= 2 (because it makes polygons)
         for (var j = 0; j < i; j++) {
             for (var P = 0; P < ps.length; P++) {
                 var p = ps[P].slice();
-                p.splice(j, 0, 0);
-                p.splice(i, 0, 0);
-                var face = hypercube_face(p, j, i);
+                // makes these points as opposed to directions (affine space?)
+                p.unshift(1);
+                p.splice(j+1, 0, 0);
+                p.splice(i+1, 0, 0);
+                var face = hypercube_face(p, j+1, i+1);
                 for (var f = 0; f < face.length; f++) {
                     triangles.push(face[f]);
                 }
