@@ -1,47 +1,66 @@
-function go() {
-    var canvas = document.getElementById('c');
-    var ctx = canvas.getContext('2d');
-    var canvasData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    for (var x = 0; x < canvasData.width; x++) {
-        for (var y = 0; y < canvasData.height; y++) {
-            // Index of the pixel in the array
-            var idx = (x + y * canvas.width) * 4;
-            canvasData.data[idx + 0] = 255;
-            canvasData.data[idx + 1] = 255;
-            canvasData.data[idx + 2] = 255;
-            canvasData.data[idx + 3] = 255;
-        }
-    }
+// super: sup(this).method.call(this, args...);
+function sup(t) {
+    return t.prototype.constructor.prototype;
+}
+function inherit(Cons, prototype) {
+    Cons.prototype = prototype;
+    Cons.prototype.constructor = Cons;
+}
 
-    var draw_fn = function(point, surface_colour) {
-        var x = point.a[1] + canvas.width/2;
-        var y = point.a[2] + canvas.height/2;
-        if (x < 0 || x >= canvas.width)
-            return;
-        if (y < 0 || y >= canvas.height)
-            return;
-        var idx = (x + y * canvas.width) * 4;
-        canvasData.data[idx + 0] = surface_colour.a[0];
-        canvasData.data[idx + 1] = surface_colour.a[1];
-        canvasData.data[idx + 2] = surface_colour.a[2];
-        canvasData.data[idx + 3] = 255;
-    };
+function go() {
+    var canvas = new Canvas(document.getElementById('c'));
     var t = new Triangle([
-            new Vector([1, -1000, 1000, 200]),
-            new Vector([1, 1000, 1000, 200]),
+            new Vector([1, -100, 100, 20]),
+            new Vector([1, 10000, 10000, 2000]),
             new Vector([1, 0, -1000, 200])
         ],
         new Colour(0, 0, 255)
     )
-    t.perspective_project(20).draw(draw_fn, t);
-    ctx.putImageData(canvasData, 0, 0);
+    canvas.fill(new Colour(255, 255, 255));
+    t.perspective_proj(20).draw(canvas, t);
+    canvas.put();
 }
 
-function Colour(r, g, b) {
-    this.a = [r, g, b];
+function Canvas(canvas_el) {
+    this.canvas_el = canvas_el;
+    this.ctx = canvas_el.getContext('2d');
+    this.get();
 }
-// I guess this means Vector methods should use this.constructor()
-Colour.prototype = new Vector([0]);
+
+Canvas.prototype.get = function() {
+    this.width = this.canvas_el.width;
+    this.height = this.canvas_el.height;
+    this.bounding_box = new BoundingBox(0, 0, this.canvas_el.width, this.canvas_el.height);
+    this.canvasData = this.ctx.getImageData(0, 0, this.canvas_el.width, this.canvas_el.height);
+}
+
+Canvas.prototype.put = function() {
+    this.ctx.putImageData(this.canvasData, 0, 0);
+};
+
+Canvas.prototype.draw = function(x, y, colour) {
+    assert(x >= 0 && x < this.width);
+    assert(y >= 0 && y < this.height);
+    var idx = (x + y * this.width) * 4;
+    this.canvasData.data[idx + 0] = colour.a[1];
+    this.canvasData.data[idx + 1] = colour.a[2];
+    this.canvasData.data[idx + 2] = colour.a[3];
+    this.canvasData.data[idx + 3] = 255;
+};
+
+Canvas.prototype.fill = function(colour) {
+    for (var x = 0; x < this.width; x++)
+        for (var y = 0; y < this.height; y++)
+            this.draw(x, y, colour);
+};
+
+function Colour(r, g, b) {
+    if (arguments.length == 1)
+        this.a = arguments[0];
+    else
+        this.a = [0, r, g, b];
+}
+inherit(Colour, new Vector(null));
 
 function Matrix(a) {
     this.a = a;
@@ -144,11 +163,25 @@ InfiniteMatrix.prototype.times = function(o) {
 };
 
 // "infinite" (0 outside of explicitly defined area)
-function Vector(a) {
-    this.a = a.slice();
+// a=[0, ...] for a vector and a=[1, ...] for a point or you can pass [...]
+// and specify type
+function Vector(a, type) {
+    this.a = a;
+    if (type !== undefined) {
+        a.unshift(type);
+    }
 }
 
+Vector.prototype.isV = function() {
+    return this.a[0] === 0;
+};
+
+Vector.prototype.isP = function() {
+    return this.a[0] === 1;
+};
+
 Vector.prototype.dot = function(v) {
+    assert(this.isV() && v.isV());
     var r = 0;
     for (var i = 0; i < Math.min(this.a.length, v.a.length); i++) {
         r += this.a[i] * v.a[i];
@@ -166,30 +199,46 @@ Vector.prototype.normalize = function() {
 };
 
 Vector.prototype.plus = function(v) {
+    assert(this.isV() || v.isV());
+    this._plus(v);
+}
+Vector.prototype._plus = function(v) {
     if (v.a.length > this.a.length) {
         return v.plus(this);
     }
-    var r = new Vector(this.a);
+
+    var r = this.copy();
     for (var i = 0; i < v.a.length; i++) {
         r.a[i] += v.a[i];
     }
     return r;
 };
 
-Vector.prototype.minus = function(v) {
-    return this.plus(v.negate());
-};
-
-Vector.prototype.negate = function() {
-    return this.times(-1);
+Vector.prototype.minus = function(o) {
+    assert(this.isP() || o.isV());
+    return new this.constructor(this._plus(o._times(-1)).a);
 };
 
 Vector.prototype.proj = function(onto) {
     return onto.times(this.dot(onto) / onto.dot(onto));
 };
 
+Vector.prototype.perspective_proj = function(projection_plane_z) {
+    assert(this.isP());
+    var f = projection_plane_z / this.a[3];
+    return new Vector([1, f*this.a[1], f*this.a[2], projection_plane_z]);
+};
+
+Vector.prototype.copy = function() {
+    return new this.constructor(this.a.slice());
+};
+
 Vector.prototype.times = function(constant) {
-    var r = new Vector(this.a);
+    assert(this.isV());
+    return this._times(constant);
+}
+Vector.prototype._times = function(constant) {
+    var r = this.copy();
     for (var i = 0; i < r.a.length; i++) {
         r.a[i] *= constant;
     }
@@ -197,17 +246,7 @@ Vector.prototype.times = function(constant) {
 };
 
 Vector.prototype.divide = function(constant) {
-    var r = new Vector(this.a);
-    for (var i = 0; i < r.a.length; i++) {
-        r.a[i] /= constant;
-    }
-    return r;
-};
-
-Vector.prototype.perspective_project = function(plane_z) {
-    var v = this.times(plane_z / this.a[3]);
-    v.a[0] = 1;
-    return v;
+    return this.times(1/constant);
 };
 
 Vector.prototype.equals = function(v) {
@@ -235,6 +274,43 @@ Plane.prototype.diffuse_factor = function(light) {
     // later will have to worry about light being behind the surface
 };
 
+function Line(a, b) {
+    this.a = a;
+    this.ab = b.minus(a);
+}
+
+Line.prototype.on_same_side = function(p, q) {
+    // I think doesn't work when three of the points form a line
+    var w = this.ab.a[2]*(p.a[1]-this.a.a[1]) - this.ab.a[1]*(p.a[2]-this.a.a[2]);
+    var v = this.ab.a[2]*(q.a[1]-this.a.a[1]) - this.ab.a[1]*(q.a[2]-this.a.a[2]);
+    return w*v >= 0;
+}
+
+function BoundingBox(l, t, r, b) {
+    this.l = l;
+    this.t = t;
+    this.r = r;
+    this.b = b;
+}
+
+BoundingBox.prototype.intersect = function(box) {
+    this.l = Math.max(this.l, box.l);
+    this.t = Math.max(this.t, box.t);
+    this.r = Math.min(this.r, box.r);
+    this.b = Math.min(this.b, box.b);
+};
+
+BoundingBox.prototype.shift = function(dx, dy) {
+    this.l += dx;
+    this.t += dy;
+    this.r += dx;
+    this.b += dy;
+};
+
+BoundingBox.prototype.copy = function() {
+    return new BoundingBox(this.l, this.t, this.r, this.b);
+};
+
 function Triangle(vs, colour) {
     assert(vs.length == 3);
     this.vs = vs;
@@ -249,10 +325,10 @@ Triangle.prototype.transform = function(transform) {
     return new Triangle(vs, this.colour);
 };
 
-Triangle.prototype.perspective_project = function(plane_z) {
+Triangle.prototype.perspective_proj = function(plane_z) {
     var vs = new Array(3);
     for (var i = 0; i < this.vs.length; i++) {
-        vs[i] = this.vs[i].perspective_project(plane_z);
+        vs[i] = this.vs[i].perspective_proj(plane_z);
     }
     return new Triangle(vs, this.colour);
 }
@@ -263,40 +339,45 @@ Triangle.prototype.plane = function() {
     return new Plane(this.vs[0], a, b);
 };
 
-Triangle.prototype.draw = function(draw_fn, unprojected) {
-    var plane = unprojected.plane();
-    // bounding box
-    // TODO clip to canvas, z-buffer, correct on triangle borders?
-    var left = Math.floor(Math.min(this.vs[0].a[1], this.vs[1].a[1], this.vs[2].a[1]));
-    var right = Math.ceil(Math.max(this.vs[0].a[1], this.vs[1].a[1], this.vs[2].a[1]));
-    var top_ = Math.floor(Math.min(this.vs[0].a[2], this.vs[1].a[2], this.vs[2].a[2]));
-    var bottom = Math.ceil(Math.max(this.vs[0].a[2], this.vs[1].a[2], this.vs[2].a[2]));
+Triangle.prototype.bounding_box = function() {
+    var vs = this.vs;
+    var l = Math.floor(Math.min(vs[0].a[1], vs[1].a[1], vs[2].a[1]));
+    var t = Math.floor(Math.min(vs[0].a[2], vs[1].a[2], vs[2].a[2]));
+    var r = Math.ceil(Math.max(vs[0].a[1], vs[1].a[1], vs[2].a[1]));
+    var b = Math.ceil(Math.max(vs[0].a[2], vs[1].a[2], vs[2].a[2]));
+    return new BoundingBox(l, t, r, b);
+};
 
-    // wrong: need to compute the actual point we are looking at on the plane
-    var p = new Vector([0, 0, 0, this.vs[0].a[3]]);
-    for (p.a[1] = left; p.a[1] < right; p.a[1]++) {
-        for (p.a[2] = top_; p.a[2] < bottom; p.a[2]++) {
+Triangle.prototype.contains = function(p) {
+    return new Line(this.vs[0], this.vs[1]).on_same_side(this.vs[2], p) &&
+           new Line(this.vs[0], this.vs[2]).on_same_side(this.vs[1], p) &&
+           new Line(this.vs[1], this.vs[2]).on_same_side(this.vs[0], p);
+};
+
+Triangle.prototype.draw = function(canvas, unprojected) {
+    // TODO z-buffer, correct on triangle borders?
+    var box = this.bounding_box();
+    var cbox = canvas.bounding_box.copy();
+    cbox.shift(-canvas.width/2, -canvas.height/2);
+    box.intersect(cbox);
+
+    var plane = unprojected.plane();
+    var p = new Vector([0, 0, 0, plane.p.a[3]]);
+    for (p.a[1] = box.l; p.a[1] < box.r; p.a[1]++) {
+       for (p.a[2] = box.t; p.a[2] < box.b; p.a[2]++) {
             // yeah this is dumb. I'm lazy and I don't like doing things the
             // normal way (plane sweep or whatever)
-            if (same_side(this.vs[0], this.vs[1], this.vs[2], p) &&
-                same_side(this.vs[0], this.vs[2], this.vs[1], p) &&
-                same_side(this.vs[1], this.vs[2], this.vs[0], p)) {
+            if (this.contains(p)) {
                 // passing p like this hardcodes a light source at the same
                 // position as the camera
                 var diffuse_factor = plane.diffuse_factor(p);
-                draw_fn(p, this.colour.times(diffuse_factor));
+                var x = p.a[1] + canvas.width/2;
+                var y = p.a[2] + canvas.height/2;
+                canvas.draw(x, y, this.colour.times(diffuse_factor));
             }
         }
     }
 };
-
-function same_side(a, b, p, q) {
-    var ab = b.minus(a);
-    // I think doesn't work when three of the points form a line
-    var w = ab.a[2]*(p.a[1]-a.a[1]) - ab.a[1]*(p.a[2]-a.a[2]);
-    var v = ab.a[2]*(q.a[1]-a.a[1]) - ab.a[1]*(q.a[2]-a.a[2]);
-    return w*v >= 0;
-}
 
 // array of {0,1}^n (not actually permutations)
 // maybe better to convert ints 0-2^n-1 to binary
@@ -340,8 +421,6 @@ function hypercube(n) { // only works for n >= 2 (because it makes polygons)
         for (var j = 0; j < i; j++) {
             for (var P = 0; P < ps.length; P++) {
                 var p = ps[P].slice();
-                // makes these points as opposed to directions (affine space?)
-                p.unshift(1);
                 p.splice(j+1, 0, 0);
                 p.splice(i+1, 0, 0);
                 var face = hypercube_face(p, j+1, i+1);
@@ -354,6 +433,7 @@ function hypercube(n) { // only works for n >= 2 (because it makes polygons)
     return new Model(triangle);
 }
 
+// need to make Vertex objects and make them points
 function hypercube_face(v, i, j) {
     assert(v[i] == 0);
     assert(v[j] == 0);
