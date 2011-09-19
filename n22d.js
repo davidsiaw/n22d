@@ -1,3 +1,7 @@
+// probably bugs:
+// - not drawing points on triangle borders
+// - unproject->reproject has a lot of error
+
 // super: sup(this).method.call(this, args...);
 function sup(t) {
     return t.prototype.constructor.prototype;
@@ -9,14 +13,22 @@ function inherit(Cons, prototype) {
 
 function go() {
     var canvas = new Canvas(document.getElementById('c'));
+    canvas.fill(new Colour(255, 255, 255));
     var t = new Triangle([
-            new Vector([1, -100, 100, 20]),
-            new Vector([1, 10000, 10000, 2000]),
+            new Vector([1, -1000, 1000, 200]),
+            new Vector([1, 1000, 1000, 200]),
             new Vector([1, 0, -1000, 200])
         ],
         new Colour(0, 0, 255)
     )
-    canvas.fill(new Colour(255, 255, 255));
+    t.perspective_proj(20).draw(canvas, t);
+    var t = new Triangle([
+            new Vector([1, -100, -100, 20]),
+            new Vector([1, 100, -100, 20]),
+            new Vector([1, 0, 100, 20])
+        ],
+        new Colour(0, 0, 255)
+    )
     t.perspective_proj(20).draw(canvas, t);
     canvas.put();
 }
@@ -30,6 +42,9 @@ function Canvas(canvas_el) {
 Canvas.prototype.get = function() {
     this.width = this.canvas_el.width;
     this.height = this.canvas_el.height;
+    this.zbuffer = new Array(this.width);
+    for (var i = 0; i < this.width; i++)
+        this.zbuffer[i] = new Array(this.height);
     this.bounding_box = new BoundingBox(0, 0, this.canvas_el.width, this.canvas_el.height);
     this.canvasData = this.ctx.getImageData(0, 0, this.canvas_el.width, this.canvas_el.height);
 }
@@ -38,9 +53,18 @@ Canvas.prototype.put = function() {
     this.ctx.putImageData(this.canvasData, 0, 0);
 };
 
-Canvas.prototype.draw = function(x, y, colour) {
+Canvas.prototype.draw = function(x, y, z, colour) {
+    var zb = this.zbuffer[x][y];
+    if (zb != 0 && z >= this.zbuffer[x][y])
+        return;
+    this.zbuffer[x][y] = z;
+    this._draw(x, y, colour);
+};
+
+Canvas.prototype._draw = function(x, y, colour) {    
     assert(x >= 0 && x < this.width);
     assert(y >= 0 && y < this.height);
+
     var idx = (x + y * this.width) * 4;
     this.canvasData.data[idx + 0] = colour.a[1];
     this.canvasData.data[idx + 1] = colour.a[2];
@@ -51,7 +75,7 @@ Canvas.prototype.draw = function(x, y, colour) {
 Canvas.prototype.fill = function(colour) {
     for (var x = 0; x < this.width; x++)
         for (var y = 0; y < this.height; y++)
-            this.draw(x, y, colour);
+            this._draw(x, y, colour);
 };
 
 function Colour(r, g, b) {
@@ -121,6 +145,31 @@ Matrix.prototype.times = function(o) {
     } else {
         assert(false);
     }
+};
+
+Matrix.prototype.rowtimes = function(row, constant) {
+    for (var i = 0; i < this.a[row].length; i++)
+        this.a[row][i] *= constant;
+};
+
+Matrix.prototype.rowminus = function(a, b) {
+    for (var i = 0; i < this.a[a].length; i++)
+        this.a[a][i] -= this.a[b][i];
+};
+
+// only 2x2 :)
+// trashes both this and v :)
+Matrix.prototype.solve = function(v) {
+    assert(this.rows() == 2);
+    assert(this.cols() == 2);
+    assert(v.a.length == 2);
+    v.a[0] /= this.a[0][0];
+    this.rowtimes(0, 1/this.a[0][0]);
+    v.a[1] /= this.a[1][0];
+    this.rowtimes(1, 1/this.a[1][0]);
+    this.rowminus(1, 0);
+    v.a[1] /= this.a[1][1];
+    v.a[0] -= this.a[0][1]*v.a[1];
 };
 
 // obviously not actually infinite
@@ -200,7 +249,7 @@ Vector.prototype.normalize = function() {
 
 Vector.prototype.plus = function(v) {
     assert(this.isV() || v.isV());
-    this._plus(v);
+    return this._plus(v);
 }
 Vector.prototype._plus = function(v) {
     if (v.a.length > this.a.length) {
@@ -272,6 +321,19 @@ Plane.prototype.diffuse_factor = function(light) {
     var normal = light.minus(light.proj(this.a)).minus(light.proj(this.b));
     return normal.normalize().dot(light.normalize());
     // later will have to worry about light being behind the surface
+};
+
+Plane.prototype.unproj = function(p) {
+    var m = newMatrixHW(2, 2);
+    m.a[0][0] = p.a[3]*this.a.a[1] - p.a[1]*this.a.a[3];
+    m.a[0][1] = p.a[3]*this.b.a[1] - p.a[1]*this.b.a[3];
+    m.a[1][0] = p.a[3]*this.a.a[2] - p.a[2]*this.a.a[3];
+    m.a[1][1] = p.a[3]*this.b.a[2] - p.a[2]*this.b.a[3];
+    var v = new Vector(new Array(2));
+    v.a[0] = p.a[1]*this.p.a[3] - p.a[3]*this.p.a[1];
+    v.a[1] = p.a[2]*this.p.a[3] - p.a[3]*this.p.a[2];
+    m.solve(v);
+    return this.p.plus(this.a.times(v.a[0])).plus(this.b.times(v.a[1]));
 };
 
 function Line(a, b) {
@@ -370,10 +432,11 @@ Triangle.prototype.draw = function(canvas, unprojected) {
             if (this.contains(p)) {
                 // passing p like this hardcodes a light source at the same
                 // position as the camera
-                var diffuse_factor = plane.diffuse_factor(p);
                 var x = p.a[1] + canvas.width/2;
                 var y = p.a[2] + canvas.height/2;
-                canvas.draw(x, y, this.colour.times(diffuse_factor));
+                var un = plane.unproj(p);
+                var diffuse_factor = plane.diffuse_factor(p);
+                canvas.draw(x, y, un.a[3], this.colour.times(diffuse_factor));
             }
         }
     }
