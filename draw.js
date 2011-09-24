@@ -152,18 +152,15 @@ function permutations(n) {
 }
 
 function Model(triangles) {
+    this.particle = new Particle();
     this.triangles = triangles;
-    this.position = new Vector([]);
-    this.rotation = new InfiniteMatrix(new Matrix([[1]]));
 }
 
-// transform all triangles for rendering
-Model.transform = function(rotation) {
-    var translation = newTranslation(this.position);
-    var transform = rotation.times(translation.times(this.rotation));
-    var new_triangles = new Array(this.triangles.length);
+Model.prototype.draw = function(canvas, plane_z) {
+    var transform = this.particle.transformation();
     for (var i = 0; i < this.triangles.length; i++) {
-        new_triangles[i] = this.triangles[i].transform(transform);
+        var t = this.triangles[i].transform(transform);
+        t.perspective_proj(plane_z).draw(canvas, t);
     }
 };
 

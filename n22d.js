@@ -6,31 +6,10 @@
 function sup(t) {
     return t.prototype.constructor.prototype;
 }
+
 function inherit(Cons, prototype) {
     Cons.prototype = prototype;
     Cons.prototype.constructor = Cons;
-}
-
-function go() {
-    var canvas = new Canvas(document.getElementById('c'));
-    canvas.fill(new Colour(255, 255, 255));
-    var t = new Triangle([
-            new Vector([1, -1000, 1000, 200]),
-            new Vector([1, 1000, 1000, 200]),
-            new Vector([1, 0, -1000, 200])
-        ],
-        new Colour(0, 0, 255)
-    )
-    t.perspective_proj(20).draw(canvas, t);
-    var t = new Triangle([
-            new Vector([1, -100, -100, 20]),
-            new Vector([1, 100, -100, 20]),
-            new Vector([1, 0, 100, 20])
-        ],
-        new Colour(0, 0, 255)
-    )
-    t.perspective_proj(20).draw(canvas, t);
-    canvas.put();
 }
 
 function Canvas(canvas_el) {
@@ -72,10 +51,13 @@ Canvas.prototype._draw = function(x, y, colour) {
     this.canvasData.data[idx + 3] = 255;
 };
 
-Canvas.prototype.fill = function(colour) {
+Canvas.prototype.clear = function() {
+    var white = new Colour(255, 255, 255);
     for (var x = 0; x < this.width; x++)
-        for (var y = 0; y < this.height; y++)
-            this._draw(x, y, colour);
+        for (var y = 0; y < this.height; y++) {
+            this._draw(x, y, white);
+            this.zbuffer[x][y] = 0;
+        }
 };
 
 function Colour(r, g, b) {
@@ -99,3 +81,32 @@ function assert(exp, message) {
     throw new AssertException(message);
   }
 }
+
+$(document).ready(function() {
+    var canvas = new Canvas(document.getElementById('c'));
+
+    var blue = new Colour(0, 0, 255);
+    var t1 = new Triangle([
+            new Vector([1, -1000, 1000, 200]),
+            new Vector([1, 1000, 1000, 200]),
+            new Vector([1, 0, -1000, 200])
+        ],
+        blue);
+    var t2 = new Triangle([
+            new Vector([1, -100, -100, 20]),
+            new Vector([1, 100, -100, 20]),
+            new Vector([1, 0, 100, 20])
+        ],
+        blue);
+    var m = new Model([t1, t2]);
+    m.particle.av = newRotation(1, 2, Math.PI/4);
+
+    var update = function() {
+        //canvas.get();
+        m.particle.evolve();
+        canvas.clear();
+        m.draw(canvas, 20);
+        canvas.put();
+    };
+    setInterval(update, 10);
+});

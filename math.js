@@ -20,7 +20,7 @@ function newMatrixI(h, w) {
             m.a[i][j] = i==j ? 1 : 0;
         }
     }
-    return m
+    return m;
 }
 
 Matrix.prototype.rows = function() {
@@ -37,9 +37,9 @@ Matrix.prototype.times = function(o) {
         var m = newMatrixHW(this.rows(), o.cols());
         var r = m.a;
         for (var i = 0; i < r.length; i++) {
-            for (var j = 0; j < r[0].length; j++) {
+            for (var j = 0; j < o.cols(); j++) {
                 r[i][j] = 0;
-                for (var k = 0; k < o.length; k++) {
+                for (var k = 0; k < o.rows(); k++) {
                     r[i][j] += this.a[i][k] * o.a[k][j];
                 }
             }
@@ -54,6 +54,7 @@ Matrix.prototype.times = function(o) {
                 a[i] += this.a[i][j] * o.a[j];
             }
         }
+        return new Vector(a);
     } else {
         assert(false);
     }
@@ -91,11 +92,20 @@ function InfiniteMatrix(matrix) {
 }
 
 function newTranslation(vector) {
-    var m = newMatrixI(vector.a.length + 1, 1);
+    var m = newMatrixI(vector.a.length, 1);
     m.a[0][0] = 1;
-    for (var i = 0; i < vector.a.length; i++) {
+    for (var i = 1; i < vector.a.length; i++) {
         m.a[i+1][0] = vector.a[i];
     }
+    return new InfiniteMatrix(m);
+}
+
+function newRotation(i, j, angle) {
+    var size = Math.max(i, j) + 1;
+    var m = newMatrixI(size, size);
+    m.a[i][i] = m.a[j][j] = Math.cos(angle);
+    m.a[j][i] = -Math.sin(angle);
+    m.a[i][j] = Math.sin(angle);
     return new InfiniteMatrix(m);
 }
 
@@ -113,12 +123,12 @@ InfiniteMatrix._squarify = function(matrix, size) {
 
 InfiniteMatrix.prototype.times = function(o) {
     if (o instanceof InfiniteMatrix) {
-        var size = Math.max(this.a.rows(), this.a.cols(), o.a.rows(), o.a.cols());
+        var size = Math.max(this.m.rows(), this.m.cols(), o.m.rows(), o.m.cols());
         var a = InfiniteMatrix._squarify(this.m, size);
         var b = InfiniteMatrix._squarify(o.m, size);
         return new InfiniteMatrix(a.times(b));
     } else {
-        var a = InfiniteMatrix._squarify(o.a.length);
+        var a = InfiniteMatrix._squarify(this.m, o.a.length);
         return a.times(o);
     }
 };
@@ -194,16 +204,24 @@ Vector.prototype.copy = function() {
     return new this.constructor(this.a.slice());
 };
 
-Vector.prototype.times = function(constant) {
+Vector.prototype.times = function(c_or_v) {
     assert(this.isV());
-    return this._times(constant);
+    return this._times(c_or_v);
 }
-Vector.prototype._times = function(constant) {
-    var r = this.copy();
-    for (var i = 0; i < r.a.length; i++) {
-        r.a[i] *= constant;
+Vector.prototype._times = function(c_or_v) {
+    if (c_or_v instanceof Vector) {
+        var v = c_or_v;
+        var r = new Vector(new Array(Math.min(this.a.length, v.a.length)));
+        for (var i = 0; i < r.a.length; i++)
+            r.a[i] = this.a[i] * v.a[i];
+        return r;
+    } else {
+        var r = this.copy();
+        for (var i = 0; i < r.a.length; i++) {
+            r.a[i] *= c_or_v;
+        }
+        return r;
     }
-    return r;
 };
 
 Vector.prototype.divide = function(constant) {
