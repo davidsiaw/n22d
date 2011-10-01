@@ -70,21 +70,6 @@ Matrix.prototype.rowminus = function(a, b) {
         this.a[a][i] -= this.a[b][i];
 };
 
-// only 2x2 :)
-// trashes both this and v :)
-Matrix.prototype.solve = function(v) {
-    assert(this.rows() == 2);
-    assert(this.cols() == 2);
-    assert(v.a.length == 2);
-    v.a[0] /= this.a[0][0];
-    this.rowtimes(0, 1/this.a[0][0]);
-    v.a[1] /= this.a[1][0];
-    this.rowtimes(1, 1/this.a[1][0]);
-    this.rowminus(1, 0);
-    v.a[1] /= this.a[1][1];
-    v.a[0] -= this.a[0][1]*v.a[1];
-};
-
 // obviously not actually infinite
 // acts as I outside the explicitly defined area
 function InfiniteMatrix(matrix) {
@@ -95,7 +80,7 @@ function newTranslation(vector) {
     var m = newMatrixI(vector.a.length, 1);
     m.a[0][0] = 1;
     for (var i = 1; i < vector.a.length; i++) {
-        m.a[i+1][0] = vector.a[i];
+        m.a[i][0] = vector.a[i];
     }
     return new InfiniteMatrix(m);
 }
@@ -192,12 +177,6 @@ Vector.prototype.minus = function(o) {
 
 Vector.prototype.proj = function(onto) {
     return onto.times(this.dot(onto) / onto.dot(onto));
-};
-
-Vector.prototype.perspective_proj = function(projection_plane_z) {
-    assert(this.isP());
-    var f = projection_plane_z / this.a[3];
-    return new Vector([1, f*this.a[1], f*this.a[2], projection_plane_z]);
 };
 
 Vector.prototype.copy = function() {

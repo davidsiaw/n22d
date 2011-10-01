@@ -13,56 +13,6 @@ Plane.prototype.diffuse_factor = function(light) {
     // later will have to worry about light being behind the surface
 };
 
-Plane.prototype.unproj = function(p) {
-    var m = newMatrixHW(2, 2);
-    m.a[0][0] = p.a[3]*this.a.a[1] - p.a[1]*this.a.a[3];
-    m.a[0][1] = p.a[3]*this.b.a[1] - p.a[1]*this.b.a[3];
-    m.a[1][0] = p.a[3]*this.a.a[2] - p.a[2]*this.a.a[3];
-    m.a[1][1] = p.a[3]*this.b.a[2] - p.a[2]*this.b.a[3];
-    var v = new Vector(new Array(2));
-    v.a[0] = p.a[1]*this.p.a[3] - p.a[3]*this.p.a[1];
-    v.a[1] = p.a[2]*this.p.a[3] - p.a[3]*this.p.a[2];
-    m.solve(v);
-    return this.p.plus(this.a.times(v.a[0])).plus(this.b.times(v.a[1]));
-};
-
-function Line(a, b) {
-    this.a = a;
-    this.ab = b.minus(a);
-}
-
-Line.prototype.on_same_side = function(p, q) {
-    // I think doesn't work when three of the points form a line
-    var w = this.ab.a[2]*(p.a[1]-this.a.a[1]) - this.ab.a[1]*(p.a[2]-this.a.a[2]);
-    var v = this.ab.a[2]*(q.a[1]-this.a.a[1]) - this.ab.a[1]*(q.a[2]-this.a.a[2]);
-    return w*v >= 0;
-}
-
-function BoundingBox(l, t, r, b) {
-    this.l = l;
-    this.t = t;
-    this.r = r;
-    this.b = b;
-}
-
-BoundingBox.prototype.intersect = function(box) {
-    this.l = Math.max(this.l, box.l);
-    this.t = Math.max(this.t, box.t);
-    this.r = Math.min(this.r, box.r);
-    this.b = Math.min(this.b, box.b);
-};
-
-BoundingBox.prototype.shift = function(dx, dy) {
-    this.l += dx;
-    this.t += dy;
-    this.r += dx;
-    this.b += dy;
-};
-
-BoundingBox.prototype.copy = function() {
-    return new BoundingBox(this.l, this.t, this.r, this.b);
-};
-
 function Triangle(vs, colour) {
     assert(vs.length == 3);
     this.vs = vs;
@@ -77,59 +27,10 @@ Triangle.prototype.transform = function(transform) {
     return new Triangle(vs, this.colour);
 };
 
-Triangle.prototype.perspective_proj = function(plane_z) {
-    var vs = new Array(3);
-    for (var i = 0; i < this.vs.length; i++) {
-        vs[i] = this.vs[i].perspective_proj(plane_z);
-    }
-    return new Triangle(vs, this.colour);
-}
-
 Triangle.prototype.plane = function() {
     var a = this.vs[0].minus(this.vs[2]);
     var b = this.vs[1].minus(this.vs[2]);
     return new Plane(this.vs[0], a, b);
-};
-
-Triangle.prototype.bounding_box = function() {
-    var vs = this.vs;
-    var l = Math.floor(Math.min(vs[0].a[1], vs[1].a[1], vs[2].a[1]));
-    var t = Math.floor(Math.min(vs[0].a[2], vs[1].a[2], vs[2].a[2]));
-    var r = Math.ceil(Math.max(vs[0].a[1], vs[1].a[1], vs[2].a[1]));
-    var b = Math.ceil(Math.max(vs[0].a[2], vs[1].a[2], vs[2].a[2]));
-    return new BoundingBox(l, t, r, b);
-};
-
-Triangle.prototype.contains = function(p) {
-    return new Line(this.vs[0], this.vs[1]).on_same_side(this.vs[2], p) &&
-           new Line(this.vs[0], this.vs[2]).on_same_side(this.vs[1], p) &&
-           new Line(this.vs[1], this.vs[2]).on_same_side(this.vs[0], p);
-};
-
-Triangle.prototype.draw = function(canvas, unprojected) {
-    // TODO correct on triangle borders?
-    var box = this.bounding_box();
-    var cbox = canvas.bounding_box.copy();
-    cbox.shift(-canvas.width/2, -canvas.height/2);
-    box.intersect(cbox);
-
-    var plane = unprojected.plane();
-    var p = new Vector([0, 0, 0, plane.p.a[3]]);
-    for (p.a[1] = box.l; p.a[1] < box.r; p.a[1]++) {
-       for (p.a[2] = box.t; p.a[2] < box.b; p.a[2]++) {
-            // yeah this is dumb. I'm lazy and I don't like doing things the
-            // normal way (plane sweep or whatever)
-            if (this.contains(p)) {
-                // passing p like this hardcodes a light source at the same
-                // position as the camera
-                var x = p.a[1] + canvas.width/2;
-                var y = p.a[2] + canvas.height/2;
-                var un = plane.unproj(p);
-                var diffuse_factor = plane.diffuse_factor(p);
-                canvas.draw(x, y, un.a[3], this.colour.times(diffuse_factor));
-            }
-        }
-    }
 };
 
 // array of {0,1}^n (not actually permutations)
@@ -156,12 +57,24 @@ function Model(triangles) {
     this.triangles = triangles;
 }
 
-Model.prototype.draw = function(canvas, plane_z) {
+Model.prototype.vertex_buffer = function() {
     var transform = this.particle.transformation();
-    for (var i = 0; i < this.triangles.length; i++) {
-        var t = this.triangles[i].transform(transform);
-        t.perspective_proj(plane_z).draw(canvas, t);
+    var light = new Vector([1]); // light at origin
+    var buffer = new Float32Array(4 * 3 * this.triangles.length);
+    var i = 0;
+    for (var j = 0; j < this.triangles.length; j++) {
+        var triangle = this.triangles[j].transform(transform);
+        var plane = triangle.plane();
+        for (var k = 0; k < 3; k++) {
+            for (var l = 1; l < 4; l++) {
+                buffer[i] = triangle.vs[k].a[l];
+                i++;
+            }
+            buffer[i] = plane.diffuse_factor(triangle.vs[k].minus(light));
+            i++;
+        }
     }
+    return buffer;
 };
 
 function hypercube(n) { // only works for n >= 2 (because it makes polygons)
