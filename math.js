@@ -54,7 +54,7 @@ Matrix.prototype.times = function(o) {
                 a[i] += this.a[i][j] * o.a[j];
             }
         }
-        return new Vector(a);
+        return new o.constructor(a);
     } else {
         assert(false);
     }
@@ -190,7 +190,7 @@ Vector.prototype.times = function(c_or_v) {
 Vector.prototype._times = function(c_or_v) {
     if (c_or_v instanceof Vector) {
         var v = c_or_v;
-        var r = new Vector(new Array(Math.min(this.a.length, v.a.length)));
+        var r = new this.constructor(new Array(Math.min(this.a.length, v.a.length)));
         for (var i = 0; i < r.a.length; i++)
             r.a[i] = this.a[i] * v.a[i];
         return r;

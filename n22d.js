@@ -16,6 +16,56 @@ function Colour(r, g, b) {
 }
 inherit(Colour, new Vector(null));
 
+Colour.prototype.hsv2rgb = function() {
+    // Lineage:
+    // - http://jsres.blogspot.com/2008/01/convert-hsv-to-rgb-equivalent.html
+    // - http://www.easyrgb.com/math.html
+    var h=this.a[1], s=this.a[2], v=this.a[3];
+    var r, g, b;
+    if(s==0){
+        this.a[1] = this.a[2] = this.a[3] = v;
+    }else{
+        // h must be < 1
+        var var_h = h * 6;
+        if (var_h==6) var_h = 0;
+        //Or ... var_i = floor( var_h )
+        var var_i = Math.floor( var_h );
+        var var_1 = v*(1-s);
+        var var_2 = v*(1-s*(var_h-var_i));
+        var var_3 = v*(1-s*(1-(var_h-var_i)));
+        if(var_i==0){ 
+            var_r = v; 
+            var_g = var_3; 
+            var_b = var_1;
+        }else if(var_i==1){ 
+            var_r = var_2;
+            var_g = v;
+            var_b = var_1;
+        }else if(var_i==2){
+            var_r = var_1;
+            var_g = v;
+            var_b = var_3
+        }else if(var_i==3){
+            var_r = var_1;
+            var_g = var_2;
+            var_b = v;
+        }else if (var_i==4){
+            var_r = var_3;
+            var_g = var_1;
+            var_b = v;
+        }else{ 
+            var_r = v;
+            var_g = var_1;
+            var_b = var_2
+        }
+        this.a[1] = var_r;
+        this.a[2] = var_g;
+        this.a[3] = var_b;
+    }
+    return this;
+};
+
+
 function AssertException(message) {
     this.message = message;
 }
@@ -54,7 +104,7 @@ function getShader(gl, id) {
     return shader;
 }
 
-function model() {
+function cylinder() {
     var h = 1, r1 = .5, r2 = .2, nPhi = 500;
     var pt = new Array(nPhi);
     var Phi = 0, dPhi = 2*Math.PI / (nPhi-1),
@@ -78,6 +128,20 @@ function model() {
     return new Model(triangles);
 }
 
+window.requestAnimFrame = function(){
+    // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
+    return (
+        window.requestAnimationFrame       || 
+        window.webkitRequestAnimationFrame || 
+        window.mozRequestAnimationFrame    || 
+        window.oRequestAnimationFrame      || 
+        window.msRequestAnimationFrame     || 
+        function(/* function */ callback){
+            window.setTimeout(callback, 1000 / 60);
+        }
+    );
+}();
+
 function webGLStart() {
     var gl, canvas;
 
@@ -99,33 +163,48 @@ function webGLStart() {
     gl.linkProgram(prog);
     gl.useProgram(prog);
 
-    var m = model();
+    var nd = 4;
+    var m = hypercube(nd);
     m.particle.ax = newRotation(1, 3, -40*Math.PI/180);
+    //m.particle.av = newRotation(2, 4, -2*Math.PI/180);
+    m.particle.av = newRotation(1, 4, -3.2*Math.PI/180).times(m.particle.av);
+    for (var i = 4; i <= nd; i++) {
+        m.particle.av = newRotation(i-3, i, 3.1/i*Math.PI/180).times(m.particle.av);
+    }
     m.particle.x = new Vector([0, 0, 0, -1.5]);
-
+    //window.setInterval(function() {m.particle.evolve()}, 30);
+    
     var posLoc = gl.getAttribLocation(prog, "aPos");
-    var diffuse = gl.getAttribLocation(prog, "diffuse");
+    var colour = gl.getAttribLocation(prog, "vColour");
     var vertex_buffer = gl.createBuffer();
     gl.enableVertexAttribArray(posLoc);
-    gl.enableVertexAttribArray(diffuse);
     gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-    gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 4*4, 0);
+    gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 6*4, 0);
+    gl.enableVertexAttribArray(colour);
     gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-    gl.vertexAttribPointer(diffuse, 1, gl.FLOAT, false, 4*4, 3*4);
+    gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
 
     var prMatrix = new CanvasMatrix4();
-    prMatrix.perspective(45, 1, .1, 100);
+    prMatrix.perspective(45, 1, .1, 30);
     gl.uniformMatrix4fv( gl.getUniformLocation(prog,"prMatrix"),
             false, new Float32Array(prMatrix.getAsArray()) );
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.clearDepth(1.0);
-    gl.clearColor(0, 0, .5, 1);
+    gl.clearColor(1, 1, 1, 1);
     var xOffs = yOffs = 0,  drag  = 0;
     var xRot = 0;
     var yRot = 0;
     var transl = -1.5;
+
+    (function animloop() {
+        drawScene();
+     requestAnimFrame(animloop);
+     })();
+
     drawScene();
 
     function drawScene(){
@@ -139,7 +218,7 @@ function webGLStart() {
 
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLES, 0, 3 * m.triangles.length);
-        gl.flush ();
+        gl.flush();
     }
 
     canvas.resize = function (){

@@ -1,6 +1,7 @@
 <html>
 <head>
-    <script src="CanvasMatrix.js" type="text/javascript"></script>
+    <script src="CanvasMatrix.js"></script>
+    <script src="http://documentcloud.github.com/underscore/underscore.js"></script>
     <script src="math.js"></script>
     <script src="physics.js"></script>
     <script src="draw.js"></script>
@@ -8,14 +9,13 @@
 </head>
 
 <script id="shader-vs" type="x-shader/x-vertex"> 
-attribute vec3 aPos;
-attribute float diffuse;
 uniform mat4 prMatrix;
-varying vec4 color;
-const vec3 dirDif = vec3(0., 0., 1.);
+attribute vec3 aPos;
+attribute vec3 vColour;
+varying vec4 fColour;
 void main(void) {
     gl_Position = prMatrix * vec4(aPos, 1.);
-    color = vec4(.9*diffuse, .5*diffuse, 0., 1.);
+    fColour = vec4(vColour, 1.);
 }
 </script> 
  
@@ -23,10 +23,10 @@ void main(void) {
 #ifdef GL_ES
 precision highp float;
 #endif
-varying vec4 color;
+varying vec4 fColour;
 
 void main(void) {
-    gl_FragColor = color;
+    gl_FragColor = fColour;
 }
 </script> 
  

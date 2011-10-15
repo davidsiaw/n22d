@@ -9,7 +9,7 @@ function Particle(x) {
 Particle.prototype.evolve = function() {
     this.x = this.x.plus(this.v).plus(this.a.times(this.a).times(1/2));
     this.v = this.v.plus(this.a);
-    this.ax = this.ax.times(this.av);
+    this.ax = this.av.times(this.ax);
 };
 
 Particle.prototype.transformation = function() {
