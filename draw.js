@@ -59,83 +59,91 @@ function Model(triangles) {
     this.triangles = triangles;
 }
 
-Model.prototype.vertex_buffer = function() {
-    var transform = this.particle.transformation();
+function GLCanvas(canvas) {
+    var gl;
+    this.canvas = canvas;
+
+    if (!window.WebGLRenderingContext)
+        throw "Your browser does not support WebGL. See http://get.webgl.org";
+    this.gl = gl = canvas.getContext("experimental-webgl");
+    if (!gl) 
+        throw "Can't get WebGL";
+
+    this.resize();
+
+    var prog = gl.createProgram();
+    gl.attachShader(prog, getShader(gl, "shader-vs"));
+    gl.attachShader(prog, getShader(gl, "shader-fs"));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+    
+    var pos = gl.getAttribLocation(prog, "vPos");
+    var colour = gl.getAttribLocation(prog, "vColour");
+    this.vertex_buffer = gl.createBuffer();
+    gl.enableVertexAttribArray(pos);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+    gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 6*4, 0);
+    gl.enableVertexAttribArray(colour);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+    gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
+
+    var prMatrix = new CanvasMatrix4();
+    prMatrix.perspective(45, 1, .1, 30);
+    gl.uniformMatrix4fv( gl.getUniformLocation(prog,"prMatrix"),
+            false, new Float32Array(prMatrix.getAsArray()) );
+
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.clearDepth(1.0);
+    gl.clearColor(1, 1, 1, 1);
+}
+
+GLCanvas.prototype.resize = function() {
+    var size = Math.min(window.innerWidth, window.innerHeight) - 10;
+    this.canvas.width = size;
+    this.canvas.height = size;
+    this.gl.viewport(0, 0, size, size);
+};
+
+GLCanvas.prototype.draw = function(models) {
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+    for (var i = 0; i < models.length; i++) {
+        var m = models[i];
+        var transform = m.particle.transformation();
+        this._draw_triangles(m.triangles, transform);
+    }
+
+    this.gl.flush();
+};
+
+GLCanvas.prototype._draw_triangles = function(triangles, transform) {
+    var data = new Float32Array(6 * 3 * triangles.length);
     var light = new Vector([1]); // light at origin
-    var buffer = new Float32Array(6 * 3 * this.triangles.length);
     var i = 0;
-    for (var j = 0; j < this.triangles.length; j++) {
-        var triangle = this.triangles[j].transform(transform);
+    for (var j = 0; j < triangles.length; j++) {
+        var triangle = triangles[j].transform(transform);
         var plane = triangle.plane();
         for (var k = 0; k < 3; k++) {
-            buffer[i++] = triangle.vs[k].a[1];
-            buffer[i++] = triangle.vs[k].a[2];
-            buffer[i] = 0;
+            data[i++] = triangle.vs[k].a[1];
+            data[i++] = triangle.vs[k].a[2];
+            data[i] = 0;
             for (var l = 3; l < triangle.vs[k].a.length; l++) {
-                buffer[i] += triangle.vs[k].a[l];
+                data[i] += triangle.vs[k].a[l];
             }
             i++;
 
             var diffuse = plane.diffuse_factor(triangle.vs[k].minus(light));
             var colour = triangle.colour.times(diffuse);
             for (var l = 1; l < 4; l++)
-                buffer[i++] = triangle.colour.a[l];
+                data[i++] = triangle.colour.a[l];
         }
     }
-    return buffer;
+
+    var gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    gl.drawArrays(gl.TRIANGLES, 0, 3 * triangles.length);
 };
-
-function hypercube(n) { // only works for n >= 2 (because polygons are 2d)
-    var triangles = [];
-    var ps = permutations(n - 2);
-    for (var i = 0; i < n; i++) {
-        for (var j = 0; j < i; j++) {
-            for (var P = 0; P < ps.length; P++) {
-                var p = ps[P].slice();
-                p.splice(j, 0, 0);
-                p.splice(i, 0, 0);
-                var face = hypercube_face(p, j, i);
-                for (var f = 0; f < face.length; f++) {
-                    triangles.push(face[f]);
-                }
-            }
-        }
-    }
-    return new Model(triangles);
-}
-
-function side_colour(i) {
-    return new Colour(i * 0.25, 0.75, 1);
-}
-
-function hypercube_face(v, i, j) {
-    var colour = side_colour(i).plus(side_colour(j)).divide(2).hsv2rgb();
-    assert(v[i] == 0);
-    assert(v[j] == 0);
-    var a = [
-        v.slice(),
-        v.slice(),
-        v.slice()
-    ];
-    a[1][i] = 1;
-    a[2][j] = 1;
-    a[0] = new Vector(a[0], 1);
-    a[1] = new Vector(a[1], 1);
-    a[2] = new Vector(a[2], 1);
-    a = new Triangle(a, colour);
-
-    var b = [
-        v.slice(),
-        v.slice(),
-        v.slice()
-    ];
-    b[0][i] = b[0][j] = 1;
-    b[1][i] = 1;
-    b[2][j] = 1;
-    b[0] = new Vector(b[0], 1);
-    b[1] = new Vector(b[1], 1);
-    b[2] = new Vector(b[2], 1);
-    b = new Triangle(b, colour);
-
-    return [a, b];
-}

@@ -1,3 +1,5 @@
+var canvas, glcanvas; // set in main()
+
 // super: sup(this).method.call(this, args...);
 function sup(t) {
     return t.prototype.constructor.prototype;
@@ -100,11 +102,12 @@ function getShader(gl, id) {
     gl.shaderSource(shader, str);
     gl.compileShader(shader);
     if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
-        raise (id + ": " + gl.getShaderInfoLog(shader));
+        throw (id + ": " + gl.getShaderInfoLog(shader));
     return shader;
 }
 
-function cylinder() {
+function cone() {
+    // http://www.ibiblio.org/e-notes/webgl/gpu/make_cone.htm
     var h = 1, r1 = .5, r2 = .2, nPhi = 500;
     var pt = new Array(nPhi);
     var Phi = 0, dPhi = 2*Math.PI / (nPhi-1),
@@ -128,7 +131,62 @@ function cylinder() {
     return new Model(triangles);
 }
 
-window.requestAnimFrame = function(){
+function hypercube(n) { // only works for n >= 2 (because polygons are 2d)
+    var triangles = [];
+    var ps = permutations(n - 2);
+    for (var i = 0; i < n; i++) {
+        for (var j = 0; j < i; j++) {
+            for (var P = 0; P < ps.length; P++) {
+                var p = ps[P].slice();
+                p.splice(j, 0, 0);
+                p.splice(i, 0, 0);
+                var face = hypercube_face(p, j, i);
+                for (var f = 0; f < face.length; f++) {
+                    triangles.push(face[f]);
+                }
+            }
+        }
+    }
+    return new Model(triangles);
+}
+
+function hypercube_face(v, i, j) {
+    var colour = side_colour(i).plus(side_colour(j)).divide(2).hsv2rgb();
+    assert(v[i] == 0);
+    assert(v[j] == 0);
+    var a = [
+        v.slice(),
+        v.slice(),
+        v.slice()
+    ];
+    a[1][i] = 1;
+    a[2][j] = 1;
+    a[0] = new Vector(a[0], 1);
+    a[1] = new Vector(a[1], 1);
+    a[2] = new Vector(a[2], 1);
+    a = new Triangle(a, colour);
+
+    var b = [
+        v.slice(),
+        v.slice(),
+        v.slice()
+    ];
+    b[0][i] = b[0][j] = 1;
+    b[1][i] = 1;
+    b[2][j] = 1;
+    b[0] = new Vector(b[0], 1);
+    b[1] = new Vector(b[1], 1);
+    b[2] = new Vector(b[2], 1);
+    b = new Triangle(b, colour);
+
+    return [a, b];
+}
+
+function side_colour(i) {
+    return new Colour(i * 0.25, 0.75, 1);
+}
+
+window.requestAnimFrame = function() {
     // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
     return (
         window.requestAnimationFrame       || 
@@ -136,123 +194,62 @@ window.requestAnimFrame = function(){
         window.mozRequestAnimationFrame    || 
         window.oRequestAnimationFrame      || 
         window.msRequestAnimationFrame     || 
-        function(/* function */ callback){
+        function(callback){
             window.setTimeout(callback, 1000 / 60);
         }
     );
 }();
 
-function webGLStart() {
-    var gl, canvas;
+function set_handlers(canvas, particle) {
+    var drag = false;
+    var drag_x = 0;
+    var drag_y = 0;
 
-    canvas = document.getElementById("canvas");
-    var size = Math.min(window.innerWidth, window.innerHeight) - 10;
-    canvas.width =  size;   canvas.height = size;
-    if (!window.WebGLRenderingContext){
-        alert("Your browser does not support WebGL. See http://get.webgl.org");
-        return;
+    canvas.onmousedown = function(ev) {
+        drag = true;
+        drag_x = ev.clientX;
+        drag_y = ev.clientY;
     }
-    try { gl = canvas.getContext("experimental-webgl");
-    } catch(e) {}
-    if ( !gl ) {alert("Can't get WebGL"); return;}
-    gl.viewport(0, 0, size, size);
-
-    var prog  = gl.createProgram();
-    gl.attachShader(prog, getShader( gl, "shader-vs" ));
-    gl.attachShader(prog, getShader( gl, "shader-fs" ));
-    gl.linkProgram(prog);
-    gl.useProgram(prog);
-
-    var nd = 4;
-    var m = hypercube(nd);
-    m.particle.ax = newRotation(1, 3, -40*Math.PI/180);
-    //m.particle.av = newRotation(2, 4, -2*Math.PI/180);
-    m.particle.av = newRotation(1, 4, -3.2*Math.PI/180).times(m.particle.av);
-    for (var i = 4; i <= nd; i++) {
-        m.particle.av = newRotation(i-3, i, 3.1/i*Math.PI/180).times(m.particle.av);
+    canvas.onmouseup = function(ev) {
+        drag = false;
     }
-    m.particle.x = new Vector([0, 0, 0, -1.5]);
-    //window.setInterval(function() {m.particle.evolve()}, 30);
-    
-    var posLoc = gl.getAttribLocation(prog, "aPos");
-    var colour = gl.getAttribLocation(prog, "vColour");
-    var vertex_buffer = gl.createBuffer();
-    gl.enableVertexAttribArray(posLoc);
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-    gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 6*4, 0);
-    gl.enableVertexAttribArray(colour);
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-    gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
-
-    var prMatrix = new CanvasMatrix4();
-    prMatrix.perspective(45, 1, .1, 30);
-    gl.uniformMatrix4fv( gl.getUniformLocation(prog,"prMatrix"),
-            false, new Float32Array(prMatrix.getAsArray()) );
-
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.clearDepth(1.0);
-    gl.clearColor(1, 1, 1, 1);
-    var xOffs = yOffs = 0,  drag  = 0;
-    var xRot = 0;
-    var yRot = 0;
-    var transl = -1.5;
-
-    (function animloop() {
-        drawScene();
-     requestAnimFrame(animloop);
-     })();
-
-    drawScene();
-
-    function drawScene(){
-        m.particle.x.a[3] = transl;
-        m.particle.ax = newRotation(2, 3, xRot*Math.PI/180).times(m.particle.ax);
-        m.particle.ax = newRotation(1, 3, yRot*Math.PI/180).times(m.particle.ax);
-        yRot = 0;  xRot = 0;
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, m.vertex_buffer(), gl.DYNAMIC_DRAW);
-
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.drawArrays(gl.TRIANGLES, 0, 3 * m.triangles.length);
-        gl.flush();
-    }
-
-    canvas.resize = function (){
-        var size = Math.min(window.innerWidth, window.innerHeight) - 10;
-        canvas.width =  size;   canvas.height = size;
-        gl.viewport(0, 0, size, size);
-        drawScene();
-    }
-    canvas.onmousedown = function ( ev ){
-        drag  = 1;
-        xOffs = ev.clientX;  yOffs = ev.clientY;
-    }
-    canvas.onmouseup = function ( ev ){
-        drag  = 0;
-        xOffs = ev.clientX;  yOffs = ev.clientY;
-    }
-    canvas.onmousemove = function ( ev ){
-        if ( drag == 0 ) return;
-        if ( ev.shiftKey ) {
-            transl *= 1 + (ev.clientY - yOffs)/1000;
-            yRot = - xOffs + ev.clientX; }
-        else {
-            yRot = - xOffs + ev.clientX;  xRot = - yOffs + ev.clientY; }
-        xOffs = ev.clientX;  yOffs = ev.clientY;
-        drawScene();
+    canvas.onmousemove = function(ev) {
+        if (!drag)
+            return;
+        var xRot = ev.clientX - drag_x;
+        var yRot = ev.clientY - drag_y;
+        drag_x = ev.clientX;
+        drag_y = ev.clientY;
+        particle.ax = newRotation(1, 3, xRot*Math.PI/180).times(particle.ax);
+        particle.ax = newRotation(2, 3, -yRot*Math.PI/180).times(particle.ax);
     }
     var wheelHandler = function(ev) {
         var del = 1.1;
-        if (ev.shiftKey) del = 1.01;
         var ds = ((ev.detail || ev.wheelDelta) > 0) ? del : (1 / del);
-        transl *= ds;
-        drawScene();
+        particle.x.a[3] *= ds;
         ev.preventDefault();
     };
     canvas.addEventListener('DOMMouseScroll', wheelHandler, false);
     canvas.addEventListener('mousewheel', wheelHandler, false);
+}
+
+function main() {
+    canvas = document.getElementById("canvas");
+    glcanvas = new GLCanvas(canvas);
+
+    var nd = 4;
+    var m = hypercube(nd);
+    m.particle.x = new Vector([0, 0, 0, -10]);
+    m.particle.ax = newRotation(1, 3, -40*Math.PI/180);
+    for (var i = 3; i <= nd; i++)
+        m.particle.av = newRotation(i - 1, i, 5.1/i*Math.PI/180).times(m.particle.av);
+        m.particle.av = newRotation(i - 2, i, 3.1/i*Math.PI/180).times(m.particle.av);
+    window.setInterval(function() {m.particle.evolve()}, 30);
+
+    set_handlers(canvas, m.particle);
+
+    (function animloop() {
+        glcanvas.draw([m]);
+        requestAnimFrame(animloop);
+    })();
 }
