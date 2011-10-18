@@ -121,7 +121,7 @@ GLCanvas.prototype.draw = function(models) {
 
 GLCanvas.prototype._draw_triangles = function(triangles, transform) {
     var data = new Float32Array(6 * 3 * triangles.length);
-    var light = new Vector([1]); // light at origin
+    var light = new Vector([1]); // light at camera
     var i = 0;
     for (var j = 0; j < triangles.length; j++) {
         var triangle = triangles[j].transform(transform);

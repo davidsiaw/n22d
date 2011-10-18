@@ -1,3 +1,16 @@
+// wrapper to make single-arg functions transparently map over arrays
+function broadcast(f) {
+    return function(o) {
+        if (o instanceof Array) {
+            var r = new o.constructor(o.length);
+            for (var i = 0; i < o.length; i++)
+                r[i] = f.call(this, o[i]);
+            return r;
+        } else
+            return f.call(this, o);
+    }
+}
+
 function Matrix(a) {
     this.a = a;
     assert(this.rows());
@@ -94,28 +107,35 @@ function newRotation(i, j, angle) {
     return new InfiniteMatrix(m);
 }
 
-InfiniteMatrix._squarify = function(matrix, size) {
-    var r = newMatrixI(size, size);
-    var copy_h = Math.min(size, matrix.rows());
-    var copy_w = Math.min(size, matrix.cols());
+// this implementation dependends on the properties of InfiniteMatrix
+// and Vector but I think the assumptions are reasonable for anything
+// arithmetic that you could want to do on a computer
+InfiniteMatrix.prototype.times = broadcast(function(o) {
+    if (o instanceof InfiniteMatrix) {
+        var size = Math.max(this.m.rows(), this.m.cols(), o.m.rows(), o.m.cols());
+        var a = this._expand(size, size);
+        var b = o._expand(size, size);
+        return new InfiniteMatrix(a.times(b));
+    } else {
+        var rows = Math.max(this.m.rows(), o.a.length);
+        var middle = Math.max(rows, this.m.cols(), o.a.length);
+        var a = this._expand(this.m.rows(), middle);
+        var b = o._expand(middle);
+        return a.times(b);
+    }
+});
+
+// expand for multiplication
+InfiniteMatrix.prototype._expand = function(height, width) {
+    var r = newMatrixI(height, width);
+    var copy_h = Math.min(height, this.m.rows());
+    var copy_w = Math.min(width, this.m.cols());
     for (var i = 0; i < copy_h; i++) {
         for (var j = 0; j < copy_w; j++) {
-            r.a[i][j] = matrix.a[i][j];
+            r.a[i][j] = this.m.a[i][j];
         }
     }
     return r;
-};
-
-InfiniteMatrix.prototype.times = function(o) {
-    if (o instanceof InfiniteMatrix) {
-        var size = Math.max(this.m.rows(), this.m.cols(), o.m.rows(), o.m.cols());
-        var a = InfiniteMatrix._squarify(this.m, size);
-        var b = InfiniteMatrix._squarify(o.m, size);
-        return new InfiniteMatrix(a.times(b));
-    } else {
-        var a = InfiniteMatrix._squarify(this.m, o.a.length);
-        return a.times(o);
-    }
 };
 
 // "infinite" (0 outside of explicitly defined area)
@@ -181,6 +201,17 @@ Vector.prototype.proj = function(onto) {
 
 Vector.prototype.copy = function() {
     return new this.constructor(this.a.slice());
+};
+
+// expand to length, filling with 0s
+Vector.prototype._expand = function(length) {
+    var a = this.a;
+    return new this.constructor(_.range(length).map(function(i) {
+        if (i < a.length)
+            return a[i];
+        else
+            return 0;
+    }));
 };
 
 Vector.prototype.times = function(c_or_v) {

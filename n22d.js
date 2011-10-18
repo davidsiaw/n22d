@@ -1,4 +1,4 @@
-var canvas, glcanvas; // set in main()
+var canvas, glcanvas, model; // set in main()
 
 // super: sup(this).method.call(this, args...);
 function sup(t) {
@@ -147,7 +147,10 @@ function hypercube(n) { // only works for n >= 2 (because polygons are 2d)
             }
         }
     }
-    return new Model(triangles);
+    var m = new Model(triangles);
+    m.particle.center = new Vector(
+        _.map(_.range(n), function() { return -.5;}), 0);
+    return m;
 }
 
 function hypercube_face(v, i, j) {
@@ -180,6 +183,63 @@ function hypercube_face(v, i, j) {
     b = new Triangle(b, colour);
 
     return [a, b];
+}
+
+// returns <n_loops> loops of <2*n_circle> triangles
+function klein_bottle(n_circle, n_loops) {
+    assert(n_loops % 2 == 0); // limitated by the way this is coded
+    var loops = new Array(n_loops);
+    var trans = newTranslation(new Vector([0, 2], 0));
+    var adjust_rot = newRotation(1, 2, Math.PI / n_circle);
+    var circle_template = circle(n_circle);
+    var c_prev = trans.times(circle_template);
+    
+    for (var i = 1; i < n_loops; i++) {
+        var frac = i/n_loops;
+        var mobius_rot = newRotation(2, 4, frac * Math.PI);
+        var torus_rot = newRotation(2, 3, frac * 2*Math.PI);
+        var transform = torus_rot.times(trans).times(mobius_rot);
+        if (i % 2)
+            transform = transform.times(adjust_rot);
+        var c_i = transform.times(circle_template);
+        if (i % 2)
+            var points = _.flatten(_.zip(c_prev, c_i));
+        else
+            var points = _.flatten(_.zip(c_i, c_prev));
+        loops[i-1] = triangle_loop(points, klein_colour(frac));
+        c_prev = c_i;
+    }
+
+    // close the loop of loops
+    c_i = trans.times(circle_template);
+    points = _.flatten(_.zip(c_i, c_prev)); // i%2 == n_loops%2 == 0
+    loops[n_loops-1] = triangle_loop(points, klein_colour(frac));
+    return _.flatten(loops);
+}
+
+function klein_colour(frac) {
+    return new Colour(frac, 0.75, 1).hsv2rgb();
+}
+
+// circle with radius 1 on the 1-2 plane
+function circle(n) {
+    var p = new Array(n);
+    p[0] = new Vector([1], 1);
+    for (var i = 1; i < n; i++)
+        p[i] = newRotation(1, 2, i/n * 2*Math.PI).times(p[i-1]);
+    return p;
+}
+
+// make a closed loop of triangles
+// like a closed version of a GL triangle strip
+function triangle_loop(points, colour) {
+    var p = points;
+    var triangles = new Array(p.length);
+    triangles[0] = new Triangle([p[p.length-2], p[p.length-1], p[0]], colour);
+    triangles[1] = new Triangle([p[p.length-1], p[0], p[1]], colour);
+    for (var i = 2; i < p.length; i++)
+        triangles[i] = new Triangle([p[i], p[i-1], p[i-2]], colour);
+    return triangles;
 }
 
 function side_colour(i) {
@@ -237,17 +297,13 @@ function main() {
     canvas = document.getElementById("canvas");
     glcanvas = new GLCanvas(canvas);
 
-    var nd = 4;
-    var m = hypercube(nd);
+    var m = model = new Model(klein_bottle(60, 30));
     m.particle.x = new Vector([0, 0, 0, -10]);
     m.particle.ax = newRotation(1, 3, -40*Math.PI/180);
-    for (var i = 3; i <= nd; i++)
-        m.particle.av = newRotation(i - 1, i, 5.1/i*Math.PI/180).times(m.particle.av);
-        m.particle.av = newRotation(i - 2, i, 3.1/i*Math.PI/180).times(m.particle.av);
-    window.setInterval(function() {m.particle.evolve()}, 30);
+    m.particle.iav = newRotation(3, 4, 3*Math.PI/180);
 
     set_handlers(canvas, m.particle);
-
+    window.setInterval(function() {m.particle.evolve()}, 30);
     (function animloop() {
         glcanvas.draw([m]);
         requestAnimFrame(animloop);
