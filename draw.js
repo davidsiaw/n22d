@@ -136,9 +136,9 @@ GLCanvas.prototype._draw_triangles = function(triangles, transform) {
             i++;
 
             var diffuse = plane.diffuse_factor(triangle.vs[k].minus(light));
-            var colour = triangle.colour.times(diffuse);
+            var colour = triangle.colour.times(Math.pow(diffuse, 1));
             for (var l = 1; l < 4; l++)
-                data[i++] = triangle.colour.a[l];
+                data[i++] = colour.a[l];
         }
     }
 

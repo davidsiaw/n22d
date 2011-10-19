@@ -213,7 +213,7 @@ function klein_bottle(n_circle, n_loops) {
     // close the loop of loops
     c_i = trans.times(circle_template);
     points = _.flatten(_.zip(c_i, c_prev)); // i%2 == n_loops%2 == 0
-    loops[n_loops-1] = triangle_loop(points, klein_colour(frac));
+    loops[n_loops-1] = [];//triangle_loop(points, klein_colour(frac));
     return _.flatten(loops);
 }
 
@@ -297,10 +297,10 @@ function main() {
     canvas = document.getElementById("canvas");
     glcanvas = new GLCanvas(canvas);
 
-    var m = model = new Model(klein_bottle(60, 30));
+    var m = model = new Model(klein_bottle(100, 14));
     m.particle.x = new Vector([0, 0, 0, -10]);
-    m.particle.ax = newRotation(1, 3, -40*Math.PI/180);
-    m.particle.iav = newRotation(3, 4, 3*Math.PI/180);
+    m.particle.ax = newRotation(1, 3, Math.PI/2);
+    m.particle.iav = newRotation(1, 4, 3*Math.PI/180);
 
     set_handlers(canvas, m.particle);
     window.setInterval(function() {m.particle.evolve()}, 30);
