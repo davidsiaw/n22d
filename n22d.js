@@ -194,7 +194,7 @@ function klein_bottle(n_circle, n_loops) {
     var circle_template = circle(n_circle);
     var c_prev = trans.times(circle_template);
     
-    for (var i = 1; i < n_loops; i++) {
+    for (var i = 1; i <= n_loops; i++) {
         var frac = i/n_loops;
         var mobius_rot = newRotation(2, 4, frac * Math.PI);
         var torus_rot = newRotation(2, 3, frac * 2*Math.PI);
@@ -210,10 +210,6 @@ function klein_bottle(n_circle, n_loops) {
         c_prev = c_i;
     }
 
-    // close the loop of loops
-    c_i = trans.times(circle_template);
-    points = _.flatten(_.zip(c_i, c_prev)); // i%2 == n_loops%2 == 0
-    loops[n_loops-1] = [];//triangle_loop(points, klein_colour(frac));
     return _.flatten(loops);
 }
 
@@ -226,7 +222,7 @@ function circle(n) {
     var p = new Array(n);
     p[0] = new Vector([1], 1);
     for (var i = 1; i < n; i++)
-        p[i] = newRotation(1, 2, i/n * 2*Math.PI).times(p[i-1]);
+        p[i] = newRotation(1, 2, i/n * 2*Math.PI).times(p[0]);
     return p;
 }
 
@@ -297,7 +293,7 @@ function main() {
     canvas = document.getElementById("canvas");
     glcanvas = new GLCanvas(canvas);
 
-    var m = model = new Model(klein_bottle(100, 14));
+    var m = model = new Model(klein_bottle(60, 20));
     m.particle.x = new Vector([0, 0, 0, -10]);
     m.particle.ax = newRotation(1, 3, Math.PI/2);
     m.particle.iav = newRotation(1, 4, 3*Math.PI/180);
