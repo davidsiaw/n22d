@@ -1,5 +1,3 @@
-var canvas, glcanvas, model; // set in main()
-
 // super: sup(this).method.call(this, args...);
 function sup(t) {
     return t.prototype.constructor.prototype;
@@ -8,6 +6,20 @@ function sup(t) {
 function inherit(Cons, prototype) {
     Cons.prototype = prototype;
     Cons.prototype.constructor = Cons;
+}
+
+function AssertException(message) {
+    this.message = message;
+}
+
+AssertException.prototype.toString = function () {
+  return 'AssertException: ' + this.message;
+};
+
+function assert(exp, message) {
+  if (!exp) {
+    throw new AssertException(message);
+  }
 }
 
 function Colour(r, g, b) {
@@ -67,20 +79,61 @@ Colour.prototype.hsv2rgb = function() {
     return this;
 };
 
-
-function AssertException(message) {
-    this.message = message;
+// just the 2d kind
+function Plane(p, a, b) {
+    this.p = p;
+    // orthonormal basis
+    this.a = a = a.normalize();
+    this.b = b.minus(b.proj(a)).normalize();
 }
 
-AssertException.prototype.toString = function () {
-  return 'AssertException: ' + this.message;
+// cos(angle between light and plane's normal space)
+Plane.prototype.diffuse_factor = function(light) {
+    var normal = light.minus(light.proj(this.a)).minus(light.proj(this.b));
+    if (normal.norm() == 0) // light shining parallel to surface
+        return 0;
+    return normal.normalize().dot(light.normalize());
 };
 
-function assert(exp, message) {
-  if (!exp) {
-    throw new AssertException(message);
-  }
+function Triangle(vs, colour) {
+    assert(vs.length == 3);
+    this.vs = vs;
+    this.colour = colour;
 }
+
+Triangle.prototype.transform = function(transform) {
+    var vs = new Array(this.vs.length);
+    for (var i = 0; i < vs.length; i++) {
+        vs[i] = transform.times(this.vs[i]);
+    }
+    return new Triangle(vs, this.colour.copy());
+};
+
+Triangle.prototype.plane = function() {
+    var a = this.vs[0].minus(this.vs[2]);
+    var b = this.vs[1].minus(this.vs[2]);
+    return new Plane(this.vs[0], a, b);
+};
+
+
+function Model(triangles) {
+    this.triangles = triangles;
+    this.transform_stack = [];
+}
+
+Model.prototype.evolve = function(time) {
+    for (var i = 0; i < this.transform_stack.length; i++)
+        this.transform_stack[i].evolve(time);
+};
+
+Model.prototype.transformed_triangles = function() {
+    var transform = this.transform_stack[0].transform();
+    for (var i = 1; i < this.transform_stack.length; i++)
+        transform = transform.times(this.transform_stack[i].transform());
+
+    return _.map(this.triangles, function(t) {return t.transform(transform);});
+};
+
 
 function getShader(gl, id) {
     var shaderScript = document.getElementById(id);
@@ -106,145 +159,110 @@ function getShader(gl, id) {
     return shader;
 }
 
-function cone() {
-    // http://www.ibiblio.org/e-notes/webgl/gpu/make_cone.htm
-    var h = 1, r1 = .5, r2 = .2, nPhi = 500;
-    var pt = new Array(nPhi);
-    var Phi = 0, dPhi = 2*Math.PI / (nPhi-1),
-        Nx = r1 - r2, Ny = h, N = Math.sqrt(Nx*Nx + Ny*Ny);
-    Nx /= N; Ny /= N;
-    var j = 0;
-    for (var i = 0; i < nPhi; i++){
-        var cosPhi = Math.cos(Phi);
-        var sinPhi = Math.sin(Phi);
-        var cosPhi2 = Math.cos(Phi + dPhi/2);
-        var sinPhi2 = Math.sin(Phi + dPhi/2);
-        pt[j] = new Vector([1, -h/2, cosPhi * r1, sinPhi * r1]);
-        j++;
-        pt[j] = new Vector([1, h/2, cosPhi2 * r2, sinPhi2 * r2]);
-        j++;
-        Phi   += dPhi;
-    }
-    var triangles = [];
-    for (var i = 2; i < pt.length; i++)
-        triangles.push(new Triangle([pt[i-2], pt[i-1], pt[i]]));
-    return new Model(triangles);
+/* N-dimensional renderer that uses WebGL.
+ * canvas_el: <canvas />
+ * models: [Model, ...] add and remove models whenever you want.
+ */
+function N22d(canvas_el, models) {
+    var gl;
+    this.canvas = canvas_el;
+    this.models = models || [];
+
+    if (!window.WebGLRenderingContext)
+        throw "Your browser does not support WebGL. See http://get.webgl.org";
+    this.gl = gl = canvas_el.getContext("experimental-webgl");
+    if (!gl) 
+        throw "Can't get WebGL";
+
+    this.resize();
+
+    var prog = gl.createProgram();
+    gl.attachShader(prog, getShader(gl, "shader-vs"));
+    gl.attachShader(prog, getShader(gl, "shader-fs"));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+    
+    var pos = gl.getAttribLocation(prog, "vPos");
+    var colour = gl.getAttribLocation(prog, "vColour");
+    this.vertex_buffer = gl.createBuffer();
+    gl.enableVertexAttribArray(pos);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+    gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 6*4, 0);
+    gl.enableVertexAttribArray(colour);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+    gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
+
+    var prMatrix = new CanvasMatrix4();
+    prMatrix.perspective(45, 1, .1, 30);
+    gl.uniformMatrix4fv( gl.getUniformLocation(prog,"prMatrix"),
+            false, new Float32Array(prMatrix.getAsArray()) );
+
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.clearDepth(1.0);
+    gl.clearColor(1, 1, 1, 1);
 }
 
-function hypercube(n) { // only works for n >= 2 (because polygons are 2d)
-    var triangles = [];
-    var ps = permutations(n - 2);
-    for (var i = 0; i < n; i++) {
-        for (var j = 0; j < i; j++) {
-            for (var P = 0; P < ps.length; P++) {
-                var p = ps[P].slice();
-                p.splice(j, 0, 0);
-                p.splice(i, 0, 0);
-                var face = hypercube_face(p, j, i);
-                for (var f = 0; f < face.length; f++) {
-                    triangles.push(face[f]);
-                }
+N22d.prototype.resize = function() {
+    var size = Math.min(window.innerWidth, window.innerHeight) - 10;
+    this.canvas.width = size;
+    this.canvas.height = size;
+    this.gl.viewport(0, 0, size, size);
+};
+
+N22d.prototype.draw = function() {
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+    for (var i = 0; i < this.models.length; i++)
+        this._draw_triangles(this.models[i].transformed_triangles());
+
+    this.gl.flush();
+};
+
+N22d.prototype._draw_triangles = function(triangles) {
+    var data = new Float32Array(6 * 3 * triangles.length);
+    var light = new Vector([1]); // light at camera
+    var i = 0;
+    for (var j = 0; j < triangles.length; j++) {
+        var triangle = triangles[j];
+        var plane = triangle.plane();
+        for (var k = 0; k < 3; k++) {
+            data[i++] = triangle.vs[k].a[1];
+            data[i++] = triangle.vs[k].a[2];
+            data[i] = 0;
+            for (var l = 3; l < triangle.vs[k].a.length; l++) {
+                data[i] += triangle.vs[k].a[l];
             }
+            i++;
+
+            var diffuse = plane.diffuse_factor(triangle.vs[k].minus(light));
+            var colour = triangle.colour.times(Math.pow(diffuse, 1));
+            for (var l = 1; l < 4; l++)
+                data[i++] = colour.a[l];
         }
     }
-    var m = new Model(triangles);
-    m.particle.center = new Vector(
-        _.map(_.range(n), function() { return -.5;}), 0);
-    return m;
-}
 
-function hypercube_face(v, i, j) {
-    var colour = side_colour(i).plus(side_colour(j)).divide(2).hsv2rgb();
-    assert(v[i] == 0);
-    assert(v[j] == 0);
-    var a = [
-        v.slice(),
-        v.slice(),
-        v.slice()
-    ];
-    a[1][i] = 1;
-    a[2][j] = 1;
-    a[0] = new Vector(a[0], 1);
-    a[1] = new Vector(a[1], 1);
-    a[2] = new Vector(a[2], 1);
-    a = new Triangle(a, colour);
+    var gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    gl.drawArrays(gl.TRIANGLES, 0, 3 * triangles.length);
+};
 
-    var b = [
-        v.slice(),
-        v.slice(),
-        v.slice()
-    ];
-    b[0][i] = b[0][j] = 1;
-    b[1][i] = 1;
-    b[2][j] = 1;
-    b[0] = new Vector(b[0], 1);
-    b[1] = new Vector(b[1], 1);
-    b[2] = new Vector(b[2], 1);
-    b = new Triangle(b, colour);
-
-    return [a, b];
-}
-
-// returns <n_loops> loops of <2*n_circle> triangles
-function klein_bottle(n_circle, n_loops) {
-    assert(n_loops % 2 == 0); // limitated by the way this is coded
-    var loops = new Array(n_loops);
-    var trans = newTranslation(new Vector([0, 2], 0));
-    var adjust_rot = newRotation(1, 2, Math.PI / n_circle);
-    var circle_template = circle(n_circle);
-    var c_prev = trans.times(circle_template);
-    
-    for (var i = 1; i <= n_loops; i++) {
-        var frac = i/n_loops;
-        var mobius_rot = newRotation(2, 4, frac * Math.PI);
-        var torus_rot = newRotation(2, 3, frac * 2*Math.PI);
-        var transform = torus_rot.times(trans).times(mobius_rot);
-        if (i % 2)
-            transform = transform.times(adjust_rot);
-        var c_i = transform.times(circle_template);
-        if (i % 2)
-            var points = _.flatten(_.zip(c_prev, c_i));
-        else
-            var points = _.flatten(_.zip(c_i, c_prev));
-        loops[i-1] = triangle_loop(points, klein_colour(frac));
-        c_prev = c_i;
+N22d.prototype.animate = function() {
+    var t = this;
+    function frame() {
+        var time = (new Date()).getTime();
+        _.map(t.models, function(m) { m.evolve(time); });
+        t.draw();
+        requestAnimFrame(frame);
     }
+    requestAnimFrame(frame);
+};
 
-    return _.flatten(loops);
-}
-
-function klein_colour(frac) {
-    return new Colour(frac, 0.75, 1).hsv2rgb();
-}
-
-// circle with radius 1 on the 1-2 plane
-function circle(n) {
-    var p = new Array(n);
-    p[0] = new Vector([1], 1);
-    for (var i = 1; i < n; i++)
-        p[i] = newRotation(1, 2, i/n * 2*Math.PI).times(p[0]);
-    return p;
-}
-
-// make a closed loop of triangles
-// like a closed version of a GL triangle strip
-function triangle_loop(points, colour) {
-    var p = points;
-    var triangles = new Array(p.length);
-    triangles[0] = new Triangle([p[p.length-2], p[p.length-1], p[0]], colour);
-    triangles[1] = new Triangle([p[p.length-1], p[0], p[1]], colour);
-    for (var i = 2; i < p.length; i++)
-        triangles[i] = new Triangle([p[i], p[i-1], p[i-2]], colour);
-    return triangles;
-}
-
-function side_colour(i) {
-    return new Colour(i * 0.25, 0.75, 1);
-}
-
-window.requestAnimFrame = function() {
-    // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
-    return (
+// http://paulirish.com/2011/requestanimationframe-for-smart-animating/
+window.requestAnimFrame = 
         window.requestAnimationFrame       || 
         window.webkitRequestAnimationFrame || 
         window.mozRequestAnimationFrame    || 
@@ -252,56 +270,24 @@ window.requestAnimFrame = function() {
         window.msRequestAnimationFrame     || 
         function(callback){
             window.setTimeout(callback, 1000 / 60);
-        }
-    );
-}();
+        };
 
-function set_handlers(canvas, particle) {
+function set_ondrag(el, callback) {
     var drag = false;
     var drag_x = 0;
     var drag_y = 0;
 
-    canvas.onmousedown = function(ev) {
+    el.onmousedown = function(ev) {
         drag = true;
+    };
+    el.onmouseup = function(ev) {
+        drag = false;
         drag_x = ev.clientX;
         drag_y = ev.clientY;
-    }
-    canvas.onmouseup = function(ev) {
-        drag = false;
-    }
-    canvas.onmousemove = function(ev) {
+    };
+    el.onmousemove = function(ev) {
         if (!drag)
             return;
-        var xRot = ev.clientX - drag_x;
-        var yRot = ev.clientY - drag_y;
-        drag_x = ev.clientX;
-        drag_y = ev.clientY;
-        particle.ax = newRotation(1, 3, xRot*Math.PI/180).times(particle.ax);
-        particle.ax = newRotation(2, 3, -yRot*Math.PI/180).times(particle.ax);
-    }
-    var wheelHandler = function(ev) {
-        var del = 1.1;
-        var ds = ((ev.detail || ev.wheelDelta) > 0) ? del : (1 / del);
-        particle.x.a[3] *= ds;
-        ev.preventDefault();
+        callback(ev.clientX - drag_x, ev.clientY - drag_y);
     };
-    canvas.addEventListener('DOMMouseScroll', wheelHandler, false);
-    canvas.addEventListener('mousewheel', wheelHandler, false);
-}
-
-function main() {
-    canvas = document.getElementById("canvas");
-    glcanvas = new GLCanvas(canvas);
-
-    var m = model = new Model(klein_bottle(60, 20));
-    m.particle.x = new Vector([0, 0, 0, -10]);
-    m.particle.ax = newRotation(1, 3, Math.PI/2);
-    m.particle.iav = newRotation(1, 4, 3*Math.PI/180);
-
-    set_handlers(canvas, m.particle);
-    window.setInterval(function() {m.particle.evolve()}, 30);
-    (function animloop() {
-        glcanvas.draw([m]);
-        requestAnimFrame(animloop);
-    })();
 }

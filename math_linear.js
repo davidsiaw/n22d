@@ -247,3 +247,48 @@ Vector.prototype.equals = function(v) {
             return false;
     return true;
 };
+
+function LazyRotation(axis_1, axis_2, angle) {
+    // optional but must be set before calling transform()
+    this.axis_1 = axis_1;
+    this.axis_2 = axis_2;
+    this.angle = angle || 0;
+
+    this.velocity = 0; // radians per second
+    this.last_update = null;
+}
+
+LazyRotation.prototype.transform = function() {
+    return newRotation(this.axis_1, this.axis_2, this.angle);
+}
+
+LazyRotation.prototype.evolve = function(time) {
+    if (!this.last_update) {
+        this.last_update = time;
+        return;
+    }
+    this.angle += this.velocity / 1000 * (time - this.last_update);
+    this.last_update = time;
+}
+
+function LazyPosition(x) {
+    this.x = x || new Vector([], 0);
+    this.v = new Vector([], 0); // units per second
+    this.a = new Vector([], 0);
+    this.last_update = null;
+}
+
+LazyPosition.prototype.evolve = function(time) {
+    if (!this.last_update) {
+        this.last_update = time;
+        return;
+    }
+    var diff = time - this.last_update;
+    this.x = this.x.plus(this.v).plus(this.a.times(this.a).times(diff/2000));
+    this.v = this.v.plus(this.a.times(diff/1000));
+    this.last_update = time;
+};
+
+LazyPosition.prototype.transform = function() {
+    return newTranslation(this.x);
+};

@@ -1,0 +1,64 @@
+<html>
+<head>
+    <script src="jquery-1.6.4.js"></script>
+    <script src="CanvasMatrix.js"></script>
+    <script src="underscore.js"></script>
+    <script src="math_linear.js"></script>
+    <script src="shapes.js"></script>
+    <script src="n22d.js"></script>
+    <script src="Tangle.js"></script>
+    <link rel="stylesheet" href="TangleKit/TangleKit.css" type="text/css">
+    <script src="TangleKit/TangleKit.js"></script>
+</head>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+uniform mat4 prMatrix;
+attribute vec3 vPos;
+attribute vec3 vColour;
+varying vec4 fColour;
+void main(void) {
+    gl_Position = prMatrix * vec4(vPos, 1.);
+    fColour = vec4(vColour, 1.);
+}
+</script>
+ 
+<script id="shader-fs" type="x-shader/x-fragment">
+#ifdef GL_ES
+precision highp float;
+#endif
+varying vec4 fColour;
+
+void main(void) {
+    gl_FragColor = fColour;
+}
+</script>
+
+<script type="text/javascript">
+var n22d, model;
+
+function main() {
+    var m = model = new Model(klein_bottle(20, 60));
+    var x_rot = new LazyRotation(1, 3, Math.PI/2);
+    var y_rot = new LazyRotation(2, 3);
+    var auto_rot = new LazyRotation(3, 4, 0);
+    auto_rot.velocity = Math.PI/2;
+    var position = new LazyPosition(new Vector([0, 0, 0, -10]));
+    m.transform_stack = [position, auto_rot, y_rot, x_rot];
+
+    n22d = new N22d(document.getElementById("canvas"), [m]);
+    n22d.animate();
+}
+</script>
+ 
+</head>
+<body onload="main();">
+    <div>
+        <canvas id='canvas' style='position:absolute; z-index:1' width=500 height=500></canvas>
+        <div style='position:absolute; z-index:2'>
+            <input id='ctrl' type='range' style='width: 10pt' min=0 max=0></input>
+            <span id='valu'>.</span>
+        </div>
+    </div>
+</body>
+
+</html>
