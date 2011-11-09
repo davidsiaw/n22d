@@ -13,13 +13,13 @@ function AssertException(message) {
 }
 
 AssertException.prototype.toString = function () {
-  return 'AssertException: ' + this.message;
+    return 'AssertException: ' + this.message;
 };
 
 function assert(exp, message) {
-  if (!exp) {
-    throw new AssertException(message);
-  }
+    if (!exp) {
+        throw new AssertException(message);
+    }
 }
 
 function Colour(r, g, b) {
@@ -42,7 +42,7 @@ Colour.prototype.hsv2rgb = function() {
         // h must be < 1
         var var_h = h * 6;
         if (var_h==6) var_h = 0;
-        //Or ... var_i = floor( var_h )
+        // Or ... var_i = floor( var_h )
         var var_i = Math.floor( var_h );
         var var_1 = v*(1-s);
         var var_2 = v*(1-s*(var_h-var_i));
@@ -110,8 +110,8 @@ Triangle.prototype.transform = function(transform) {
 };
 
 Triangle.prototype.plane = function() {
-    var a = this.vs[0].minus(this.vs[2]);
-    var b = this.vs[1].minus(this.vs[2]);
+    var a = this.vs[0].point_minus(this.vs[2]);
+    var b = this.vs[1].point_minus(this.vs[2]);
     return new Plane(this.vs[0], a, b);
 };
 
@@ -127,9 +127,9 @@ Model.prototype.evolve = function(time) {
 };
 
 Model.prototype.transformed_triangles = function() {
-    var transform = this.transform_stack[0].transform();
+    var transform = this.transform_stack[0].transform;
     for (var i = 1; i < this.transform_stack.length; i++)
-        transform = transform.times(this.transform_stack[i].transform());
+        transform = transform.times(this.transform_stack[i].transform);
 
     return _.map(this.triangles, function(t) {return t.transform(transform);});
 };
@@ -192,10 +192,9 @@ function N22d(canvas_el, models) {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
     gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
 
-    var prMatrix = new CanvasMatrix4();
-    prMatrix.perspective(45, 1, .1, 30);
-    gl.uniformMatrix4fv( gl.getUniformLocation(prog,"prMatrix"),
-            false, new Float32Array(prMatrix.getAsArray()) );
+    var proj = new Matrix(4, 4).to_perspective(Math.PI/4, 1, .1, 30);
+    gl.uniformMatrix4fv(gl.getUniformLocation(prog,"prMatrix"),
+            false, new Float32Array(proj.as_webgl_array()));
 
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -237,7 +236,7 @@ N22d.prototype._draw_triangles = function(triangles) {
             }
             i++;
 
-            var diffuse = plane.diffuse_factor(triangle.vs[k].minus(light));
+            var diffuse = plane.diffuse_factor(triangle.vs[k].point_minus(light));
             var colour = triangle.colour.times(Math.pow(diffuse, 1));
             for (var l = 1; l < 4; l++)
                 data[i++] = colour.a[l];

@@ -79,15 +79,17 @@ function _side_colour(i) {
 function klein_bottle(n_circle, n_loops) {
     assert(n_loops % 2 == 0); // limitated by the way this is coded
     var loops = new Array(n_loops);
-    var trans = newTranslation(new Vector([0, 2], 0));
-    var adjust_rot = newRotation(1, 2, Math.PI / n_circle);
+    var trans = new InfiniteMatrix().to_translation(new Vector([0, 2], 0));
+    var adjust_rot = new InfiniteMatrix().to_rotation(1, 2, Math.PI/n_circle);
+    var mobius_rot = new InfiniteMatrix();
+    var torus_rot = new InfiniteMatrix();
     var circle_template = circle(n_circle);
     var c_prev = trans.times(circle_template);
     
     for (var i = 1; i <= n_loops; i++) {
         var frac = i/n_loops;
-        var mobius_rot = newRotation(2, 4, frac * Math.PI);
-        var torus_rot = newRotation(2, 3, frac * 2*Math.PI);
+        mobius_rot.to_rotation(2, 4, frac * Math.PI);
+        torus_rot.to_rotation(2, 3, frac * 2*Math.PI);
         var transform = torus_rot.times(trans).times(mobius_rot);
         if (i % 2)
             transform = transform.times(adjust_rot);
@@ -96,23 +98,20 @@ function klein_bottle(n_circle, n_loops) {
             var points = _.flatten(_.zip(c_prev, c_i));
         else
             var points = _.flatten(_.zip(c_i, c_prev));
-        loops[i-1] = triangle_loop(points, new Colour(0, 0, 0.75));
+        loops[i-1] = triangle_loop(points, new Colour(0, 0.4, 1));
         c_prev = c_i;
     }
 
     return _.flatten(loops);
 }
 
-function _klein_colour(frac) {
-    return new Colour(frac, 0.75, 1).hsv2rgb();
-}
-
 // circle with radius 1 on the 1-2 plane
 function circle(n) {
     var p = new Array(n);
-    p[0] = new Vector([1], 1);
+    var r = new Matrix(3, 3);
+    p[0] = new Vector([1, 0], 1);
     for (var i = 1; i < n; i++)
-        p[i] = newRotation(1, 2, i/n * 2*Math.PI).times(p[0]);
+        p[i] = r.to_rotation(1, 2, i/n * 2*Math.PI).times(p[0]);
     return p;
 }
 

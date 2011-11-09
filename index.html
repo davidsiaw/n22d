@@ -1,7 +1,6 @@
 <html>
 <head>
     <script src="jquery-1.6.4.js"></script>
-    <script src="CanvasMatrix.js"></script>
     <script src="underscore.js"></script>
     <script src="math_linear.js"></script>
     <script src="shapes.js"></script>
@@ -35,11 +34,11 @@ var n22d, model;
 
 function main() {
     var m = model = new Model(klein_bottle(20, 60));
-    var x_rot = new LazyRotation(1, 3, Math.PI/2);
-    var y_rot = new LazyRotation(2, 3);
-    var auto_rot = new LazyRotation(3, 4, 0);
+    var x_rot = new Rotation(1, 3, Math.PI/2);
+    var y_rot = new Rotation(2, 3);
+    var auto_rot = new Rotation(3, 4);
     auto_rot.velocity = Math.PI/2;
-    var position = new LazyPosition(new Vector([0, 0, 0, -10]));
+    var position = new Position(new Vector([0, 0, 0, -10]));
     m.transform_stack = [position, auto_rot, y_rot, x_rot];
 
     n22d = new N22d(document.getElementById("canvas"), [m]);
