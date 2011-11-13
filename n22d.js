@@ -1,140 +1,3 @@
-function Colour(r, g, b) {
-    if (arguments.length == 1)
-        this.a = arguments[0];
-    else
-        this.a = [0, r, g, b];
-}
-inherit(Colour, new Vector(null));
-
-Colour.prototype.hsv2rgb = function() {
-    // Lineage:
-    // - http://jsres.blogspot.com/2008/01/convert-hsv-to-rgb-equivalent.html
-    // - http://www.easyrgb.com/math.html
-    var h=this.a[1], s=this.a[2], v=this.a[3];
-    var r, g, b;
-    if(s==0){
-        this.a[1] = this.a[2] = this.a[3] = v;
-    }else{
-        // h must be < 1
-        var var_h = h * 6;
-        if (var_h==6) var_h = 0;
-        // Or ... var_i = floor( var_h )
-        var var_i = Math.floor( var_h );
-        var var_1 = v*(1-s);
-        var var_2 = v*(1-s*(var_h-var_i));
-        var var_3 = v*(1-s*(1-(var_h-var_i)));
-        if(var_i==0){ 
-            var_r = v; 
-            var_g = var_3; 
-            var_b = var_1;
-        }else if(var_i==1){ 
-            var_r = var_2;
-            var_g = v;
-            var_b = var_1;
-        }else if(var_i==2){
-            var_r = var_1;
-            var_g = v;
-            var_b = var_3
-        }else if(var_i==3){
-            var_r = var_1;
-            var_g = var_2;
-            var_b = v;
-        }else if (var_i==4){
-            var_r = var_3;
-            var_g = var_1;
-            var_b = v;
-        }else{ 
-            var_r = v;
-            var_g = var_1;
-            var_b = var_2
-        }
-        this.a[1] = var_r;
-        this.a[2] = var_g;
-        this.a[3] = var_b;
-    }
-    return this;
-};
-
-// just the 2d kind
-function Plane(p, a, b) {
-    this.p = p;
-    // orthonormal basis
-    this.a = a = a.normalize();
-    this.b = b.minus(b.proj(a)).normalize();
-}
-
-// cos(angle between light and plane's normal space)
-Plane.prototype.diffuse_factor = function(light) {
-    var normal = light.minus(light.proj(this.a)).minus(light.proj(this.b));
-    if (normal.norm() == 0) // light shining parallel to surface
-        return 0;
-    return normal.normalize().dot(light.normalize());
-};
-
-function Triangle(vs, colour) {
-    assert(vs.length == 3);
-    this.vs = vs;
-    this.colour = colour;
-}
-
-Triangle.prototype.transform = function(transform) {
-    var vs = new Array(this.vs.length);
-    for (var i = 0; i < vs.length; i++) {
-        vs[i] = transform.times(this.vs[i]);
-    }
-    return new Triangle(vs, this.colour.copy());
-};
-
-Triangle.prototype.plane = function() {
-    var a = this.vs[0].point_minus(this.vs[2]);
-    var b = this.vs[1].point_minus(this.vs[2]);
-    return new Plane(this.vs[0], a, b);
-};
-
-
-function Model(triangles) {
-    this.triangles = triangles;
-    this.transform_stack = [];
-}
-
-Model.prototype.evolve = function(time) {
-    for (var i = 0; i < this.transform_stack.length; i++)
-        this.transform_stack[i].evolve(time);
-};
-
-Model.prototype.transformed_triangles = function() {
-    var transform = this.transform_stack[0].transform;
-    for (var i = 1; i < this.transform_stack.length; i++)
-        transform = transform.times(this.transform_stack[i].transform);
-
-    return _.map(this.triangles, function(t) {return t.transform(transform);});
-};
-
-
-function getShader(gl, id) {
-    var shaderScript = document.getElementById(id);
-    var str = "";
-    var k = shaderScript.firstChild;
-    while (k) {
-        if (k.nodeType == 3)
-            str += k.textContent;
-        k = k.nextSibling;
-    }
-
-    var shader;
-    if (shaderScript.type == "x-shader/x-fragment")
-        shader = gl.createShader(gl.FRAGMENT_SHADER);
-    else if (shaderScript.type == "x-shader/x-vertex")
-        shader = gl.createShader(gl.VERTEX_SHADER);
-    else
-        assert(false);
-    gl.shaderSource(shader, str);
-    gl.compileShader(shader);
-    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
-        throw new Error(id + ": " + gl.getShaderInfoLog(shader));
-    return shader;
-}
-
 /* N-dimensional renderer that uses WebGL.
  * div: <div />
  * models: [Model, ...] add and remove models whenever you want.
@@ -248,6 +111,142 @@ N22d.prototype.animate = function() {
     }
     requestAnimFrame(frame);
 };
+
+function Colour(r, g, b) {
+    if (arguments.length == 1)
+        this.a = arguments[0];
+    else
+        this.a = [0, r, g, b];
+}
+inherit(Colour, new Vector(null));
+
+Colour.prototype.hsv2rgb = function() {
+    // Lineage:
+    // - http://jsres.blogspot.com/2008/01/convert-hsv-to-rgb-equivalent.html
+    // - http://www.easyrgb.com/math.html
+    var h=this.a[1], s=this.a[2], v=this.a[3];
+    var r, g, b;
+    if(s==0){
+        this.a[1] = this.a[2] = this.a[3] = v;
+    }else{
+        // h must be < 1
+        var var_h = h * 6;
+        if (var_h==6) var_h = 0;
+        // Or ... var_i = floor( var_h )
+        var var_i = Math.floor( var_h );
+        var var_1 = v*(1-s);
+        var var_2 = v*(1-s*(var_h-var_i));
+        var var_3 = v*(1-s*(1-(var_h-var_i)));
+        if(var_i==0){ 
+            var_r = v; 
+            var_g = var_3; 
+            var_b = var_1;
+        }else if(var_i==1){ 
+            var_r = var_2;
+            var_g = v;
+            var_b = var_1;
+        }else if(var_i==2){
+            var_r = var_1;
+            var_g = v;
+            var_b = var_3
+        }else if(var_i==3){
+            var_r = var_1;
+            var_g = var_2;
+            var_b = v;
+        }else if (var_i==4){
+            var_r = var_3;
+            var_g = var_1;
+            var_b = v;
+        }else{ 
+            var_r = v;
+            var_g = var_1;
+            var_b = var_2
+        }
+        this.a[1] = var_r;
+        this.a[2] = var_g;
+        this.a[3] = var_b;
+    }
+    return this;
+};
+
+// just the 2d kind
+function Plane(p, a, b) {
+    this.p = p;
+    // orthonormal basis
+    this.a = a = a.normalize();
+    this.b = b.minus(b.proj(a)).normalize();
+}
+
+// cos(angle between light and plane's normal space)
+Plane.prototype.diffuse_factor = function(light) {
+    var normal = light.minus(light.proj(this.a)).minus(light.proj(this.b));
+    if (normal.norm() == 0) // light shining parallel to surface
+        return 0;
+    return normal.normalize().dot(light.normalize());
+};
+
+function Triangle(vs, colour) {
+    assert(vs.length == 3);
+    this.vs = vs;
+    this.colour = colour;
+}
+
+Triangle.prototype.transform = function(transform) {
+    var vs = new Array(this.vs.length);
+    for (var i = 0; i < vs.length; i++) {
+        vs[i] = transform.times(this.vs[i]);
+    }
+    return new Triangle(vs, this.colour.copy());
+};
+
+Triangle.prototype.plane = function() {
+    var a = this.vs[0].point_minus(this.vs[2]);
+    var b = this.vs[1].point_minus(this.vs[2]);
+    return new Plane(this.vs[0], a, b);
+};
+
+
+function Model(triangles) {
+    this.triangles = triangles;
+    this.transform_stack = [];
+}
+
+Model.prototype.evolve = function(time) {
+    for (var i = 0; i < this.transform_stack.length; i++)
+        this.transform_stack[i].evolve(time);
+};
+
+Model.prototype.transformed_triangles = function() {
+    var transform = this.transform_stack[0].transform;
+    for (var i = 1; i < this.transform_stack.length; i++)
+        transform = transform.times(this.transform_stack[i].transform);
+
+    return _.map(this.triangles, function(t) {return t.transform(transform);});
+};
+
+function getShader(gl, id) {
+    var shaderScript = document.getElementById(id);
+    var str = "";
+    var k = shaderScript.firstChild;
+    while (k) {
+        if (k.nodeType == 3)
+            str += k.textContent;
+        k = k.nextSibling;
+    }
+
+    var shader;
+    if (shaderScript.type == "x-shader/x-fragment")
+        shader = gl.createShader(gl.FRAGMENT_SHADER);
+    else if (shaderScript.type == "x-shader/x-vertex")
+        shader = gl.createShader(gl.VERTEX_SHADER);
+    else
+        assert(false);
+    gl.shaderSource(shader, str);
+    gl.compileShader(shader);
+    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
+        throw new Error(id + ": " + gl.getShaderInfoLog(shader));
+    return shader;
+}
 
 function set_ondrag(el, callback) {
     var drag = false;
