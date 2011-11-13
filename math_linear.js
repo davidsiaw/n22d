@@ -259,6 +259,7 @@ Vector.prototype.to_0 = function() {
 
 // Set this to matrix*vector (common interface with Matrix)
 Vector.prototype.to_times = function(matrix, vector) {
+    assert(this != vector);
     assert(matrix.rows == this.a.length);
     assert(matrix.cols == vector.a.length);
     this.to_0();

@@ -1,27 +1,3 @@
-// super: sup(this).method.call(this, args...);
-function sup(t) {
-    return t.prototype.constructor.prototype;
-}
-
-function inherit(Cons, prototype) {
-    Cons.prototype = prototype;
-    Cons.prototype.constructor = Cons;
-}
-
-function AssertException(message) {
-    this.message = message;
-}
-
-AssertException.prototype.toString = function () {
-    return 'AssertException: ' + this.message;
-};
-
-function assert(exp, message) {
-    if (!exp) {
-        throw new AssertException(message);
-    }
-}
-
 function Colour(r, g, b) {
     if (arguments.length == 1)
         this.a = arguments[0];
@@ -155,36 +131,35 @@ function getShader(gl, id) {
     gl.shaderSource(shader, str);
     gl.compileShader(shader);
     if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
-        throw (id + ": " + gl.getShaderInfoLog(shader));
+        throw new Error(id + ": " + gl.getShaderInfoLog(shader));
     return shader;
 }
 
 /* N-dimensional renderer that uses WebGL.
- * canvas_el: <canvas />
+ * div: <div />
  * models: [Model, ...] add and remove models whenever you want.
  */
-function N22d(canvas_el, models) {
-    var gl;
-    this.canvas = canvas_el;
+function N22d(div, models) {
     this.models = models || [];
-
+    this.div = div;
     if (!window.WebGLRenderingContext)
-        throw "Your browser does not support WebGL. See http://get.webgl.org";
-    this.gl = gl = canvas_el.getContext("experimental-webgl");
-    if (!gl) 
-        throw "Can't get WebGL";
-
-    this.resize();
-
-    var prog = gl.createProgram();
-    gl.attachShader(prog, getShader(gl, "shader-vs"));
-    gl.attachShader(prog, getShader(gl, "shader-fs"));
-    gl.linkProgram(prog);
-    gl.useProgram(prog);
+        return this.error(
+            "Your browser doesn't support WebGL. For this to work " +
+            "you need to <a href='http://get.webgl.org'>get WebGL</a>.");
+    this.canvas = $('<canvas></canvas>')[0];
+    this.div.append(this.canvas);
+    this.gl = this.canvas.getContext("experimental-webgl");
+    if (!this.gl)
+        this.error(
+            "WebGL isn't working. Maybe " +
+            "<a href='http://get.webgl.org'>http://get.webgl.org</a> " +
+            "can help you.");
+    this.prog = this.init_shaders();
+    this.vertex_buffer = this.gl.createBuffer();
     
-    var pos = gl.getAttribLocation(prog, "vPos");
-    var colour = gl.getAttribLocation(prog, "vColour");
-    this.vertex_buffer = gl.createBuffer();
+    var gl = this.gl;
+    var pos = gl.getAttribLocation(this.prog, "vPos");
+    var colour = gl.getAttribLocation(this.prog, "vColour");
     gl.enableVertexAttribArray(pos);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
     gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 6*4, 0);
@@ -192,23 +167,37 @@ function N22d(canvas_el, models) {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
     gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
 
-    var proj = new Matrix(4, 4).to_perspective(Math.PI/4, 1, .1, 30);
-    gl.uniformMatrix4fv(gl.getUniformLocation(prog,"prMatrix"),
-            false, new Float32Array(proj.as_webgl_array()));
-
     gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.clearDepth(1.0);
     gl.clearColor(1, 1, 1, 1);
+
+    this.resize();
+}
+
+N22d.prototype.error = function(msg) {
+    this.div.append($('<span>'+msg+'</span>'));
+    throw new Error(msg);
+};
+
+N22d.prototype.init_shaders = function() {
+    var prog = this.gl.createProgram();
+    this.gl.attachShader(prog, getShader(this.gl, "shader-vs"));
+    this.gl.attachShader(prog, getShader(this.gl, "shader-fs"));
+    this.gl.linkProgram(prog);
+    this.gl.useProgram(prog);
+    return prog;
 }
 
 N22d.prototype.resize = function() {
-    var size = Math.min(window.innerWidth, window.innerHeight) - 10;
-    this.canvas.width = size;
-    this.canvas.height = size;
-    this.gl.viewport(0, 0, size, size);
+    var width = $(this.div).width();
+    var height = $(this.div).height();
+    this.canvas.width = width
+    this.canvas.height = height
+    this.gl.viewport(0, 0, width, height);
+
+    var persp = new Matrix(4, 4).to_perspective(Math.PI/4, width/height, .1, 30);
+    this.gl.uniformMatrix4fv(this.gl.getUniformLocation(this.prog,"prMatrix"),
+            false, new Float32Array(persp.as_webgl_array()));
 };
 
 N22d.prototype.draw = function() {
@@ -259,17 +248,6 @@ N22d.prototype.animate = function() {
     }
     requestAnimFrame(frame);
 };
-
-// http://paulirish.com/2011/requestanimationframe-for-smart-animating/
-window.requestAnimFrame = 
-        window.requestAnimationFrame       || 
-        window.webkitRequestAnimationFrame || 
-        window.mozRequestAnimationFrame    || 
-        window.oRequestAnimationFrame      || 
-        window.msRequestAnimationFrame     || 
-        function(callback){
-            window.setTimeout(callback, 1000 / 60);
-        };
 
 function set_ondrag(el, callback) {
     var drag = false;
