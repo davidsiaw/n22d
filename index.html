@@ -8,6 +8,7 @@
 <script src="underscore.js"></script>
 
 <script src="util.js"></script>
+<script src="ui.js"></script>
 <script src="math_linear.js"></script>
 <script src="shapes.js"></script>
 <script src="n22d.js"></script>
@@ -15,6 +16,13 @@
 <style type="text/css">
     html, body {
         height: 100%;
+    }
+
+    div.table div {
+        display: table-row;
+    }
+    div.table div div {
+        display: table-cell;
     }
 </style>
 
@@ -41,7 +49,7 @@
 </script>
 
 <script type="text/javascript">
-    var n22d, model; // for debugging
+    var n22d, model, ui; // for debugging
 
     // like in middle school except with fewer edges and no kissing
     function spinning_bottle() {
@@ -56,7 +64,11 @@
     }
 
     $(document).ready(function() {
+        ui = new UI($('#ui'));
+        var rotations = ui.set_n(4);
         model = spinning_bottle();
+        for (var i = 0; i < rotations.length; i++)
+            model.transform_stack.push(rotations[i]);
         n22d = new N22d($('#n22d'), [model]);
         n22d.animate();
     });
@@ -65,6 +77,7 @@
 
 <body>
     <div id='n22d' style='min-height: 100%;'></div>
+    <div id='ui'></div>
 </body>
 
 </html>

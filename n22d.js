@@ -3,6 +3,8 @@
  * models: [Model, ...] add and remove models whenever you want.
  */
 function N22d(div, models) {
+    assert(!div.children().length);
+
     this.models = models || [];
     this.div = div;
     if (!window.WebGLRenderingContext)
@@ -246,24 +248,4 @@ function getShader(gl, id) {
     if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
         throw new Error(id + ": " + gl.getShaderInfoLog(shader));
     return shader;
-}
-
-function set_ondrag(el, callback) {
-    var drag = false;
-    var drag_x = 0;
-    var drag_y = 0;
-
-    el.onmousedown = function(ev) {
-        drag = true;
-    };
-    el.onmouseup = function(ev) {
-        drag = false;
-        drag_x = ev.clientX;
-        drag_y = ev.clientY;
-    };
-    el.onmousemove = function(ev) {
-        if (!drag)
-            return;
-        callback(ev.clientX - drag_x, ev.clientY - drag_y);
-    };
 }

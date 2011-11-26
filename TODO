@@ -1,3 +1,9 @@
 - UI
+    - Inherit canvas height somehow?
+- Make N22d a self-contained widget
 - More symmetrical-looking klein bottle model?
+- Bottle-tour demo page
 - Gourad shading
+- N-dimensional Portal with closed time-like curves
+- N-dimensional Mandelbrot visualizer
+- Some sort of module system
