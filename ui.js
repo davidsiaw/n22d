@@ -47,6 +47,7 @@ RotationUI.prototype.set_n = function(n) {
                 this.transforms.a.push(rotation);
                 var angle_control = new MiniRange(cell, _.bind(function(r, d) {
                     r.angle += d * Math.PI / 100;
+                    r.velocity = 0;
                     change_cb();
                 }, null, rotation));
                 var speed_control = new MiniRange(cell, _.bind(function(r, d) {

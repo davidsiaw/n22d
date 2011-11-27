@@ -45,12 +45,43 @@ N22d.prototype.error = function(msg) {
 };
 
 N22d.prototype.init_shaders = function() {
+    var vertex_shader = this.make_shader(this.gl.VERTEX_SHADER, [
+        'uniform mat4 prMatrix;',
+        'attribute vec3 vPos;',
+        'attribute vec3 vColour;',
+        'varying vec4 fColour;',
+        'void main(void) {',
+        '    gl_Position = prMatrix * vec4(vPos, 1.);',
+        '    fColour = vec4(vColour, 1.);',
+        '}'
+    ].join('\n'));
+    var fragment_shader = this.make_shader(this.gl.FRAGMENT_SHADER, [
+        '#ifdef GL_ES',
+        'precision highp float;',
+        '#endif',
+        'varying vec4 fColour;',
+
+        'void main(void) {',
+        '    gl_FragColor = fColour;',
+        '}'
+    ].join('\n'));
+
     var prog = this.gl.createProgram();
-    this.gl.attachShader(prog, getShader(this.gl, "shader-vs"));
-    this.gl.attachShader(prog, getShader(this.gl, "shader-fs"));
+    this.gl.attachShader(prog, vertex_shader);
+    this.gl.attachShader(prog, fragment_shader);
     this.gl.linkProgram(prog);
     this.gl.useProgram(prog);
     return prog;
+}
+
+N22d.prototype.make_shader = function(type, src) {
+    var gl = this.gl;
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, src);
+    gl.compileShader(shader);
+    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
+        this.error(id + ": " + gl.getShaderInfoLog(shader));
+    return shader;
 }
 
 N22d.prototype.resize = function() {
@@ -216,27 +247,3 @@ Model.prototype.transformed_triangles = function() {
     var transform = this.transforms.transform;
     return _.map(this.triangles, function(t) {return t.transform(transform);});
 };
-
-function getShader(gl, id) {
-    var shaderScript = document.getElementById(id);
-    var str = "";
-    var k = shaderScript.firstChild;
-    while (k) {
-        if (k.nodeType == 3)
-            str += k.textContent;
-        k = k.nextSibling;
-    }
-
-    var shader;
-    if (shaderScript.type == "x-shader/x-fragment")
-        shader = gl.createShader(gl.FRAGMENT_SHADER);
-    else if (shaderScript.type == "x-shader/x-vertex")
-        shader = gl.createShader(gl.VERTEX_SHADER);
-    else
-        assert(false);
-    gl.shaderSource(shader, str);
-    gl.compileShader(shader);
-    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
-        throw new Error(id + ": " + gl.getShaderInfoLog(shader));
-    return shader;
-}

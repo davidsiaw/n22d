@@ -3,7 +3,7 @@
 <head>
 <title>Spinning Klein Bottle</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-
+<link href="style.css" rel="stylesheet" type="text/css">
 <script src="jquery-1.6.4.js"></script>
 <script src="underscore.js"></script>
 
@@ -17,36 +17,7 @@
     html, body {
         height: 100%;
     }
-
-    div.table div {
-        display: table-row;
-    }
-    div.table div div {
-        display: table-cell;
-    }
 </style>
-
-<script id="shader-vs" type="x-shader/x-vertex">
-    uniform mat4 prMatrix;
-    attribute vec3 vPos;
-    attribute vec3 vColour;
-    varying vec4 fColour;
-    void main(void) {
-        gl_Position = prMatrix * vec4(vPos, 1.);
-        fColour = vec4(vColour, 1.);
-    }
-</script>
- 
-<script id="shader-fs" type="x-shader/x-fragment">
-    #ifdef GL_ES
-    precision highp float;
-    #endif
-    varying vec4 fColour;
-
-    void main(void) {
-        gl_FragColor = fColour;
-    }
-</script>
 
 <script type="text/javascript">
     var n22d, model, ui, linkable; // for debugging
