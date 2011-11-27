@@ -107,7 +107,7 @@ N22d.prototype.animate = function() {
     var t = this;
     function frame() {
         var time = (new Date()).getTime();
-        _.map(t.models, function(m) { m.evolve(time); });
+        _.map(t.models, function(m) { m.transforms.evolve(time); });
         t.draw();
         requestAnimFrame(frame);
     }
@@ -195,9 +195,8 @@ function Triangle(vs, colour) {
 
 Triangle.prototype.transform = function(transform) {
     var vs = new Array(this.vs.length);
-    for (var i = 0; i < vs.length; i++) {
+    for (var i = 0; i < vs.length; i++)
         vs[i] = transform.times(this.vs[i]);
-    }
     return new Triangle(vs, this.colour.copy());
 };
 
@@ -210,19 +209,11 @@ Triangle.prototype.plane = function() {
 
 function Model(triangles) {
     this.triangles = triangles;
-    this.transform_stack = [];
+    this.transforms = new TransformChain();
 }
 
-Model.prototype.evolve = function(time) {
-    for (var i = 0; i < this.transform_stack.length; i++)
-        this.transform_stack[i].evolve(time);
-};
-
 Model.prototype.transformed_triangles = function() {
-    var transform = this.transform_stack[0].transform;
-    for (var i = 1; i < this.transform_stack.length; i++)
-        transform = transform.times(this.transform_stack[i].transform);
-
+    var transform = this.transforms.transform;
     return _.map(this.triangles, function(t) {return t.transform(transform);});
 };
 

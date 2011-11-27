@@ -1,18 +1,41 @@
+function LinkableUI(ui) {
+    this.ui = ui;
+    ui.change(_.bind(this.update_url, this));
+}
+
+LinkableUI.prototype.update_url = function() {
+    var l = window.location;
+    var new_href = [
+        l.origin, l.pathname, l.search, '#', JSON.stringify(ui.get_state())
+    ].join('');
+    window.location.assign(new_href);
+};
+
+LinkableUI.prototype.load = function(defaults) {
+    var json = window.location.hash.slice(1);
+    if (json)
+        this.ui.set_state(JSON.parse(json));
+    else
+        this.ui.set_state(defaults);
+};
+
 // A UI for rotating objects in any number of dimensions
-function UI(div) {
+function RotationUI(div) {
     assert(!div.children().length);
 
     this.div = div;
     this.table = $('<div class="table"></div>');
     this.div.append(this.table);
-    
-    this.n = 0;
+    this.change_cb = _.identity;
+
+    this.set_n(0);
 }
 
-UI.prototype.set_n = function(n) {
+RotationUI.prototype.set_n = function(n) {
+    var change_cb = this.change_cb;
     this.n = n;
     this.table.children().remove();
-    var rotations = [];
+    this.transforms = new TransformChain();
     for (var i = 1; i <= n; i++) {
         var row = $('<div></div>');
         this.table.append(row);
@@ -21,19 +44,40 @@ UI.prototype.set_n = function(n) {
             row.append(cell);
             if (i < j) {
                 var rotation = new Rotation(i, j);
-                rotations.push(rotation);
+                this.transforms.a.push(rotation);
                 var angle_control = new MiniRange(cell, _.bind(function(r, d) {
                     r.angle += d * Math.PI / 100;
+                    change_cb();
                 }, null, rotation));
                 var speed_control = new MiniRange(cell, _.bind(function(r, d) {
                     r.velocity += d * Math.PI / 100;
+                    change_cb();
                 }, null, rotation));
             }
         }
     }
     // break circular references
     row = cell = angle_control = speed_control = null;
-    return rotations;
+};
+
+RotationUI.prototype.get_state = function() {
+    return {
+        n: this.n,
+        r: _.map(this.transforms.a, function(r) { return [r.angle, r.velocity]; })
+    };
+};
+
+RotationUI.prototype.set_state = function(state) {
+    this.set_n(state.n);
+    if (state.r)
+        for (var i = 0; i < state.r.length; i++) {
+            this.transforms.a[i].angle = state.r[i][0];
+            this.transforms.a[i].velocity = state.r[i][1];
+        }
+};
+
+RotationUI.prototype.change = function(callback) {
+    this.change_cb = callback;
 };
 
 function MiniRange(div, callback) {

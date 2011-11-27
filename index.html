@@ -49,7 +49,7 @@
 </script>
 
 <script type="text/javascript">
-    var n22d, model, ui; // for debugging
+    var n22d, model, ui, linkable; // for debugging
 
     // like in middle school except with fewer edges and no kissing
     function spinning_bottle() {
@@ -59,16 +59,16 @@
         var auto_rot = new Rotation(3, 4);
         auto_rot.velocity = Math.PI/8;
         var position = new Position(new Vector([0, 0, 0, -8]));
-        m.transform_stack = [position, auto_rot, y_rot, x_rot];
+        m.transforms.a = [position, auto_rot, y_rot, x_rot];
         return m;
     }
 
     $(document).ready(function() {
-        ui = new UI($('#ui'));
-        var rotations = ui.set_n(4);
+        ui = new RotationUI($('#ui'));
+        linkable = new LinkableUI(ui);
+        linkable.load({n: 4});
         model = spinning_bottle();
-        for (var i = 0; i < rotations.length; i++)
-            model.transform_stack.push(rotations[i]);
+        model.transforms.a.push(ui.transforms);
         n22d = new N22d($('#n22d'), [model]);
         n22d.animate();
     });

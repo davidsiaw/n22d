@@ -348,3 +348,23 @@ Position.prototype.evolve = function(time) {
 Position.prototype.update_transform = function() {
     this.transform.to_translation(this.x);
 };
+
+// a chain of lazily evaluated transforms
+function TransformChain(a) {
+    this.a = a || [];
+    this.update_transform();
+}
+
+TransformChain.prototype.evolve = function(time) {
+    for (var i = 0; i < this.a.length; i++)
+        this.a[i].evolve(time);
+    this.update_transform();
+};
+
+TransformChain.prototype.update_transform = function() {
+    this.transform = new InfiniteMatrix(new Matrix(0, 0));
+    for (var i = 0; i < this.a.length; i++) {
+        this.a[i].update_transform();
+        this.transform = this.transform.times(this.a[i].transform);
+    }
+};
