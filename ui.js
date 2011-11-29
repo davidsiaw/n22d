@@ -8,7 +8,7 @@ LinkableUI.prototype.update_url = function() {
     var new_href = [
         l.origin, l.pathname, l.search, '#', JSON.stringify(ui.get_state())
     ].join('');
-    window.location.assign(new_href);
+    window.location.replace(new_href);
 };
 
 LinkableUI.prototype.load = function(defaults) {
