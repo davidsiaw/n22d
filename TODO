@@ -1,5 +1,5 @@
 - UI
-    - Inherit canvas height somehow?
+- Decide whether Vectors are always affine or not
 - More symmetrical-looking klein bottle model?
 - Bottle-tour demo page
 - Some sort of module system

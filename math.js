@@ -12,12 +12,22 @@ function broadcast(f) {
 }
 
 // dimensions are constant, values are not
-function Matrix(rows, cols) {
-    this.rows = rows;
-    this.cols = cols;
-    this.a = new Array(rows);
-    for (var i = 0; i < rows; i++)
-        this.a[i] = new Array(cols);
+function Matrix(rows_or_matrix, opt_cols) {
+    if (opt_cols === undefined) {
+        assert(rows_or_matrix instanceof Matrix);
+        var matrix = rows_or_matrix;
+        this.rows = matrix.rows;
+        this.cols = matrix.cols;
+        this.a = matrix.a.slice();
+        for (var i = 0; i < this.rows; i++)
+            this.a[i] = this.a[i].slice();
+    } else {
+        this.rows = rows_or_matrix;
+        this.cols = opt_cols;
+        this.a = new Array(this.rows);
+        for (var i = 0; i < this.rows; i++)
+            this.a[i] = new Array(this.cols);
+    }
 }
 
 // change to the zero matrix
@@ -34,6 +44,62 @@ Matrix.prototype.to_I = function() {
     var diag = Math.min(this.rows, this.cols);
     for (var i = 0; i < diag; i++)
         this.a[i][i] = 1;
+    return this;
+};
+
+Matrix.prototype.to_swap = function(row_1, row_2) {
+    this.to_I().row_swap(row_1, row_2);
+    return this;
+};
+
+Matrix.prototype.to_translation = function(vector) {
+    assert(vector.a.length == this.rows);
+    this.to_I();
+    for (var i = 0; i < vector.a.length; i++)
+        this.a[i][0] = vector.a[i];
+    this.a[0][0] = 1;
+    return this;
+};
+
+// A primitive planar rotation.
+Matrix.prototype.to_rotation = function(axis_1, axis_2, angle) {
+    var max_axis = Math.max(axis_1, axis_2);
+    assert(this.rows > max_axis);
+    assert(this.cols > max_axis);
+    this.to_I();
+    this.a[axis_1][axis_1] = this.a[axis_2][axis_2] = Math.cos(angle);
+    this.a[axis_1][axis_2] = Math.sin(angle);
+    this.a[axis_2][axis_1] = -this.a[axis_1][axis_2];
+    return this;
+};
+
+// Become a rotation that turns src to dst
+Matrix.prototype.to_rot_between = function(src, dst) {
+    src = src.normalized();
+    dst = dst.normalized();
+
+    var space = new Space();
+    space.expand([src, dst]);
+    var basis_change = space.basis_change();
+    var rot = new Matrix(2, 2).to_rotation(0, 1, -Math.arccos(src.dot(dst)));
+    rot.a[0][0] -= 1; // subtract I
+    rot.a[1][1] -= 1;
+    return this.add(basis_change.transpose().times(rot).times(basis_change));
+};
+
+// functionality copied from CanvasMatrix.js
+// I didn't think through the math myself
+Matrix.prototype.to_perspective = function(fov, aspect_ratio, z_near, z_far) {
+    assert(this.rows == 4);
+    assert(this.cols == 4);
+    this.to_0();
+    var cot = 1/Math.tan(fov/2);
+    // puts scaled [3] onto the point normalization axis
+    this.a[0][3] = -2 * z_near * z_far / (z_far - z_near);
+    this.a[1][1] = cot / aspect_ratio;
+    this.a[2][2] = cot;
+    this.a[3][0] = -1;
+    this.a[3][3] = -(z_far + z_near) / (z_far - z_near);
     return this;
 }
 
@@ -61,42 +127,103 @@ Matrix.prototype.times = function(other) {
     return result.to_times(this, other);
 };
 
-Matrix.prototype.to_translation = function(vector) {
-    assert(vector.a.length == this.rows);
-    this.to_I();
-    for (var i = 0; i < vector.a.length; i++)
-        this.a[i][0] = vector.a[i];
-    this.a[0][0] = 1;
+Matrix.prototype.add = function(other) {
+    for (var i = 0; i < other.rows; i++)
+        for (var j = 0; j < other.cols; j++)
+            this.a[i][j] += other.a[i][j];
     return this;
 };
 
-// a single rotation on a plane. you can build any N-d rotation out of these
-Matrix.prototype.to_rotation = function(axis_1, axis_2, angle) {
-    var max_axis = Math.max(axis_1, axis_2);
-    assert(this.rows > max_axis);
-    assert(this.cols > max_axis);
-    this.to_I();
-    this.a[axis_1][axis_1] = this.a[axis_2][axis_2] = Math.cos(angle);
-    this.a[axis_1][axis_2] = Math.sin(angle);
-    this.a[axis_2][axis_1] = -this.a[axis_1][axis_2];
-    return this;
+Matrix.prototype.transpose = function() {
+    var m = new Matrix(this.cols, this.rows);
+    for (var i = 0; i < this.cols; i++)
+        for (var j = 0; j < this.rows; j++)
+            m.a[i][j] = this.a[j][i];
+    return m;
 };
 
-// functionality copied from CanvasMatrix.js
-// I didn't think through the math myself
-Matrix.prototype.to_perspective = function(fov, aspect_ratio, z_near, z_far) {
-    assert(this.rows == 4);
-    assert(this.cols == 4);
-    this.to_0();
-    var cot = 1/Math.tan(fov/2);
-    // puts scaled [3] onto the point normalization axis
-    this.a[0][3] = -2 * z_near * z_far / (z_far - z_near);
-    this.a[1][1] = cot / aspect_ratio;
-    this.a[2][2] = cot;
-    this.a[3][0] = -1;
-    this.a[3][3] = -(z_far + z_near) / (z_far - z_near);
-    return this;
+Matrix.prototype.row_swap = function(i, j) {
+    var tmp = this.a[i];
+    this.a[i] = this.a[j];
+    this.a[j] = tmp;
 }
+
+// decompose into [row_permutation, lower_unit_triangular, upper_triangular]
+Matrix.prototype.plu_decompose = function() {
+    var p = new Matrix(this.rows, this.rows).to_I();
+    var l = new Matrix(this.rows, this.rows).to_I();
+    var u = new Matrix(this);
+
+    for (var diag = 0; diag < l.rows; diag++) {
+        var max = diag;
+        for (var row = diag+1; row < u.rows; row++)
+            if (Math.abs(u.a[row][diag]) > Math.abs(u.a[max][diag]))
+                max = row;
+        p.row_swap(diag, max);
+        u.row_swap(diag, max);
+        l.row_swap(diag, max);
+        l.a[diag][max] = l.a[max][diag] = 0;
+        l.a[diag][diag] = l.a[max][max] = 1;
+
+        for (var row = diag+1; row < u.rows; row++) {
+            l.a[row][diag] = u.a[row][diag] / u.a[diag][diag];
+            if (isNaN(l.a[row][diag]))
+                continue;
+            for (var col = diag; col < u.cols; col++)
+                u.a[row][col] -= l.a[row][diag] * u.a[diag][col];
+        }
+    }
+    return [p, l, u];
+};
+
+Matrix.prototype.plu_decompose_test = function() {
+    var plu = this.plu_decompose();
+    var p = plu[0];
+    var l = plu[1];
+    var u = plu[2];
+    return [this, p.times(l).times(u), p, l, u];
+};
+
+Matrix.prototype.solve = function(other) {
+    var plu = this.plu_decompose();
+    var p = plu[0];
+    var l = plu[1];
+    var u = plu[2];
+
+    // invert p
+    other = p.transpose().times(other);
+
+    // invert l
+    for (var row = 1; row < this.rows; row++)
+        for (var middle = 0; middle < row; middle++)
+            for (var col = 0; col < this.cols; col++)
+                other.a[row][col] -= l.a[row][middle] * other.a[middle][col];
+
+    // invert u
+    for (var row = this.rows-1; row >= 0; row--) {
+        for (var middle = row+1; middle < this.cols; middle++)
+            for (var col = 0; col < other.cols; col++)
+                other.a[row][col] -= u.a[row][middle] * other.a[middle][col];
+
+        for (var col = 0; col < this.cols; col++)
+            other.a[row][col] /= u.a[row][row];
+    }
+
+    return other;
+};
+
+Matrix.prototype.solve_test = function(other) {
+    return [other, this.times(this.solve(other))];
+};
+
+Matrix.prototype.inverse = function() {
+    assert(this.rows == this.cols);
+    return this.solve(new Matrix(this.rows, this.cols).to_I());
+};
+
+Matrix.prototype.inverse_test = function() {
+    return this.times(this.inverse());
+};
 
 Matrix.prototype.as_webgl_array = function() {
     assert(this.rows == 4);
@@ -116,6 +243,11 @@ function InfiniteMatrix(opt_matrix) {
     this.m = opt_matrix;
 }
 
+InfiniteMatrix.prototype.to_I = function() {
+    this.m = new Matrix(0, 0);
+    return this;
+};
+
 InfiniteMatrix.prototype.to_rotation = function(axis_1, axis_2, angle) {
     var size = Math.max(axis_1, axis_2) + 1;
     this.m = new Matrix(size, size);
@@ -127,6 +259,16 @@ InfiniteMatrix.prototype.to_translation = function(vector) {
     this.m = new Matrix(vector.a.length, 1);
     this.m.to_translation(vector);
     return this;
+};
+
+InfiniteMatrix.prototype.to_swap = function(row_1, row_2) {
+    var size = Math.max(row_1, row_2) + 1;
+    this.m = new Matrix(size, size).to_swap(row_1, row_2);
+    return this;
+};
+
+InfiniteMatrix.prototype.transpose = function() {
+    return new InfiniteMatrix(this.m.transpose());
 };
 
 // this implementation dependends on the properties of InfiniteMatrix
@@ -159,7 +301,7 @@ InfiniteMatrix.prototype._expand = function(height, width) {
     return r;
 };
 
-// vectors' infiniteness (boundedness?) matches whatever you try to operate on
+// vectors' infiniteness matches whatever you try to operate on
 // them with:
 //    - finite when you multiply them by finite matrices and 
 //    - infinite (expanding) when you combine them with InfiniteMatrix's and
@@ -181,7 +323,6 @@ Vector.prototype.isP = function() {
 };
 
 Vector.prototype.dot = function(v) {
-    assert(this.isV() && v.isV());
     var r = 0;
     for (var i = 0; i < Math.min(this.a.length, v.a.length); i++)
         r += this.a[i] * v.a[i];
@@ -193,7 +334,7 @@ Vector.prototype.norm = function() {
     return Math.sqrt(this.dot(this));
 };
 
-Vector.prototype.normalize = function() {
+Vector.prototype.normalized = function() {
     return this.divide(this.norm());
 };
 
@@ -210,8 +351,26 @@ Vector.prototype.plus = function(other) {
     return answer;
 };
 
+// in-place subtraction, other must be the same length or shorter
+Vector.prototype.subtract = function(other) {
+    for (var i = 0; i < other.a.length; i++)
+        this.a[i] -= other.a[i];
+    return this;
+};
+
 Vector.prototype.minus = function(other) {
     return this.plus(other.times(-1));
+};
+
+Vector.prototype.minus_space = function(space) {
+    var length = this.a.length;
+    for (var i = 0; i < space.basis.length; i++)
+        if (space.basis[i].a.length > length)
+            length = space.basis[i].a.length;
+    var result = this.copy(length);
+    for (var i = 0; i < space.basis.length; i++)
+        result.subtract(result.proj_onto(space.basis[i]));
+    return result;
 };
 
 // for adding points together
@@ -232,12 +391,19 @@ Vector.prototype.point_minus = function(other) {
     return this.point_plus(other.times(-1));
 };
 
-Vector.prototype.proj = function(onto) {
+Vector.prototype.proj_onto = function(onto) {
     return onto.times(this.dot(onto) / onto.dot(onto));
 };
 
-Vector.prototype.copy = function() {
-    return new this.constructor(this.a.slice());
+// copy, optionally to a vector with a different number of dimensions
+Vector.prototype.copy = function(opt_length) {
+    if (opt_length === undefined)
+        opt_length = this.a.length;
+    var a = new Array(opt_length);
+    var copy_length = Math.min(opt_length, this.a.length);
+    for (var i = 0; i < copy_length; i++)
+        a[i] = this.a[i];
+    return new this.constructor(a);
 };
 
 // expand to length, filling with 0s
@@ -300,6 +466,32 @@ Vector.prototype.equals = function(v) {
     return true;
 };
 
+// vector space
+function Space() {
+    this.basis = [];
+}
+
+Space.prototype.expand = broadcast(function(vector) {
+    // should do a sanity check for nearly dependent vectors?
+    return this.basis.push(vector.minus_space(this).normalized());
+});
+
+Space.prototype.basis_change = function() {
+    var cols = _.max(this.basis, function(v) { return v.a.length; }).a.length;
+    var m = new Matrix(this.basis.length, cols).to_0();
+    for (var i = 0; i < this.basis.length; i++)
+        for (var j = 0; j < this.basis[i].a.length; j++)
+            m.a[i][j] = this.basis[i].a[j];
+    return m;
+};
+
+// XXX not a big fan of this
+function StaticTransform(t) {
+    this.transform = t || new InfiniteMatrix().to_I();
+}
+
+StaticTransform.prototype.evolve = function() {};
+StaticTransform.prototype.update_transform = function() {};
 
 function Rotation(axis_1, axis_2, opt_angle) {
     this.axis_1 = axis_1;
@@ -324,7 +516,6 @@ Rotation.prototype.evolve = function(time) {
 Rotation.prototype.update_transform = function() {
     this.transform.to_rotation(this.axis_1, this.axis_2, this.angle);
 };
-
 
 function Position(opt_x) {
     this.x = opt_x || new Vector([], 0);
@@ -352,6 +543,7 @@ Position.prototype.update_transform = function() {
 // a chain of lazily evaluated transforms
 function TransformChain(a) {
     this.a = a || [];
+    this.transform = new InfiniteMatrix();
     this.update_transform();
 }
 
@@ -362,7 +554,7 @@ TransformChain.prototype.evolve = function(time) {
 };
 
 TransformChain.prototype.update_transform = function() {
-    this.transform = new InfiniteMatrix(new Matrix(0, 0));
+    this.transform.to_I();
     for (var i = 0; i < this.a.length; i++) {
         this.a[i].update_transform();
         this.transform = this.transform.times(this.a[i].transform);

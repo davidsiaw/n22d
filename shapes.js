@@ -75,31 +75,38 @@ function _side_colour(i) {
     return new Colour(i * 0.25, 0.75, 1);
 }
 
-// returns <n_loops> loops of <2*n_circle> triangles
+// Models a Klein bottle to look like a cross between a torus and a Mobius strip.
+// n_circle: Number of points in the small radius (like in a torus).
+// n_loops: Number of loops of triangles. The model will have small holes
+//          unless n_loops is even.
+// returns <2*n_circle*n_loops> triangles
 function klein_bottle(n_circle, n_loops) {
-    assert(n_loops % 2 == 0); // limitated by the way this is coded
     var loops = new Array(n_loops);
     var trans = new InfiniteMatrix().to_translation(new Vector([0, 2], 0));
-    var adjust_rot = new InfiniteMatrix().to_rotation(1, 2, Math.PI/n_circle);
-    var mobius_rot = new InfiniteMatrix();
     var torus_rot = new InfiniteMatrix();
-    var circle_template = circle(n_circle);
-    var c_prev = trans.times(circle_template);
-    
+    var mobius_rot = new InfiniteMatrix();
+    var offset_rot = new InfiniteMatrix();
+
+    var circle_0 = circle(n_circle); // original circle
+    var circle_prev = trans.times(circle_0); // previous circle
+
     for (var i = 1; i <= n_loops; i++) {
         var frac = i/n_loops;
+
+        // offset each circle of points so we can make triangles between them
+        offset_rot.to_rotation(1, 2, frac * Math.PI);
+        // a half rotation like in a mobius strip
         mobius_rot.to_rotation(2, 4, frac * Math.PI);
+        // if we didn't do mobius_rot we would get a torus
         torus_rot.to_rotation(2, 3, frac * 2*Math.PI);
-        var transform = torus_rot.times(trans).times(mobius_rot);
-        if (i % 2)
-            transform = transform.times(adjust_rot);
-        var c_i = transform.times(circle_template);
-        if (i % 2)
-            var points = _.flatten(_.zip(c_prev, c_i));
-        else
-            var points = _.flatten(_.zip(c_i, c_prev));
+        // only torus_rot acts on coordinate 3, changing it continuously, so the surface
+        // never intersects itself
+
+        var transform = torus_rot.times(trans).times(mobius_rot).times(offset_rot);
+        var circle_i = transform.times(circle_0);
+        var points = _.flatten(_.zip(circle_prev, circle_i));
         loops[i-1] = triangle_loop(points, new Colour(0, 0.4, 1));
-        c_prev = c_i;
+        circle_prev = circle_i;
     }
 
     return _.flatten(loops);

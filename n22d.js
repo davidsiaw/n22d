@@ -3,6 +3,7 @@
  * models: [Model, ...] add and remove models whenever you want.
  */
 function N22d(div, models) {
+    this.draggers = [];
     assert(!div.children().length);
 
     this.models = models || [];
@@ -87,13 +88,14 @@ N22d.prototype.make_shader = function(type, src) {
 N22d.prototype.resize = function() {
     var width = $(this.div).width();
     var height = $(this.div).height();
-    this.canvas.width = width
-    this.canvas.height = height
+    this.canvas.width = width;
+    this.canvas.height = height;
     this.gl.viewport(0, 0, width, height);
 
-    var persp = new Matrix(4, 4).to_perspective(Math.PI/4, width/height, .1, 30);
+    this.perspective = new Matrix(4, 4).to_perspective(Math.PI/4, width/height, .1, 30);
+    this.inverse_persp = this.perspective.inverse();
     this.gl.uniformMatrix4fv(this.gl.getUniformLocation(this.prog,"prMatrix"),
-            false, new Float32Array(persp.as_webgl_array()));
+            false, new Float32Array(this.perspective.as_webgl_array()));
 };
 
 N22d.prototype.draw = function() {
@@ -116,13 +118,18 @@ N22d.prototype._draw_triangles = function(triangles) {
             data[i++] = triangle.vs[k].a[1];
             data[i++] = triangle.vs[k].a[2];
             data[i] = 0;
-            for (var l = 3; l < triangle.vs[k].a.length; l++) {
+            for (var l = 3; l < triangle.vs[k].a.length; l++)
                 data[i] += triangle.vs[k].a[l];
-            }
             i++;
 
-            var diffuse = plane.diffuse_factor(triangle.vs[k].point_minus(light));
-            var colour = triangle.colour.times(Math.pow(diffuse, 1));
+            var light_vector = triangle.vs[k].point_minus(light);
+            var normal = light_vector.minus_space(plane);
+            if (normal.norm() == 0)
+                var colour = triangle.colour.times(0);
+            else {
+                var diffuse = normal.normalized().dot(light_vector.normalized());
+                var colour = triangle.colour.times(Math.pow(diffuse, 1));
+            }
             for (var l = 1; l < 4; l++)
                 data[i++] = colour.a[l];
         }
@@ -143,6 +150,18 @@ N22d.prototype.animate = function() {
         requestAnimFrame(frame);
     }
     requestAnimFrame(frame);
+};
+
+N22d.prototype.screen2world = function(x, y) {
+    x = (2*x - this.canvas.width) / this.canvas.height;
+    y = 1 - 2*y/this.canvas.height;
+    return new Vector([1, x, y, -1/Math.tan(Math.PI/8)]);
+    var v = this.inverse_persp.times(new Vector([1, x, y, 30]));
+    return v.divide(v.a[0]);
+};
+
+N22d.prototype.ondrag = function(callback, shiftKey) {
+    return this.draggers.push(new Dragger(this.canvas, callback, shiftKey));
 };
 
 function Colour(r, g, b) {
@@ -202,22 +221,6 @@ Colour.prototype.hsv2rgb = function() {
     return this;
 };
 
-// just the 2d kind
-function Plane(p, a, b) {
-    this.p = p;
-    // orthonormal basis
-    this.a = a = a.normalize();
-    this.b = b.minus(b.proj(a)).normalize();
-}
-
-// cos(angle between light and plane's normal space)
-Plane.prototype.diffuse_factor = function(light) {
-    var normal = light.minus(light.proj(this.a)).minus(light.proj(this.b));
-    if (normal.norm() == 0) // light shining parallel to surface
-        return 0;
-    return normal.normalize().dot(light.normalize());
-};
-
 function Triangle(vs, colour) {
     assert(vs.length == 3);
     this.vs = vs;
@@ -231,13 +234,14 @@ Triangle.prototype.transform = function(transform) {
     return new Triangle(vs, this.colour.copy());
 };
 
+// not actually the same plane that the triangle is on...
 Triangle.prototype.plane = function() {
-    var a = this.vs[0].point_minus(this.vs[2]);
-    var b = this.vs[1].point_minus(this.vs[2]);
-    return new Plane(this.vs[0], a, b);
+    var plane = new Space();
+    plane.expand(this.vs[0].point_minus(this.vs[2]));
+    plane.expand(this.vs[1].point_minus(this.vs[2]));
+    return plane;
 };
-
-
+    
 function Model(triangles) {
     this.triangles = triangles;
     this.transforms = new TransformChain();
