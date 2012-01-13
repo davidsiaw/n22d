@@ -333,7 +333,6 @@ Vector.prototype.normalized = function() {
     return this.divide(this.norm());
 };
 
-// for adding vectors to points or to each other
 Vector.prototype.plus = function(other) {
     if (other.a.length > this.a.length)
         return other.plus(this);

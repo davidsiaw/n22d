@@ -130,7 +130,7 @@ N22d.prototype._draw_triangles = function(triangles) {
                 var diffuse = normal.normalized().dot(light_vector.normalized());
                 var colour = triangle.colour.times(Math.pow(diffuse, 1));
             }
-            for (var l = 1; l < 4; l++)
+            for (var l = 0; l < 3; l++)
                 data[i++] = colour.a[l];
         }
     }
@@ -169,7 +169,7 @@ var Colour = inherit(Vector, function(r, g, b) {
     if (arguments.length == 1)
         this.a = arguments[0];
     else
-        this.a = [0, r, g, b];
+        this.a = [r, g, b];
 });
 
 Colour.prototype.hsv2rgb = function() {
