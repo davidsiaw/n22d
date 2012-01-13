@@ -94,11 +94,11 @@ function klein_bottle(n_circle, n_loops) {
         var frac = i/n_loops;
 
         // offset each circle of points so we can make triangles between them
-        offset_rot.to_rotation(1, 2, frac * Math.PI);
+        offset_rot.to_rotation(frac * Math.PI, 1, 2);
         // a half rotation like in a mobius strip
-        mobius_rot.to_rotation(2, 4, frac * Math.PI);
+        mobius_rot.to_rotation(frac * Math.PI, 2, 4);
         // if we didn't do mobius_rot we would get a torus
-        torus_rot.to_rotation(2, 3, frac * 2*Math.PI);
+        torus_rot.to_rotation(frac * 2*Math.PI, 2, 3);
         // only torus_rot acts on coordinate 3, changing it continuously, so the surface
         // never intersects itself
 
@@ -118,7 +118,7 @@ function circle(n) {
     var r = new Matrix(3, 3);
     p[0] = new Vector([1, 0], 1);
     for (var i = 1; i < n; i++)
-        p[i] = r.to_rotation(1, 2, i/n * 2*Math.PI).times(p[0]);
+        p[i] = r.to_rotation(i/n * 2*Math.PI, 1, 2).times(p[0]);
     return p;
 }
 

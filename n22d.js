@@ -3,9 +3,9 @@
  * models: [Model, ...] add and remove models whenever you want.
  */
 function N22d(div, models) {
-    this.draggers = [];
     assert(!div.children().length);
 
+    this.mouse_drag = null;
     this.models = models || [];
     this.div = div;
     if (!window.WebGLRenderingContext)
@@ -18,7 +18,7 @@ function N22d(div, models) {
     if (!this.gl)
         this.error(
             "WebGL isn't working. Maybe " +
-            "<a href='http://get.webgl.org'>http://get.webgl.org</a> " +
+            "<a href='http://get.webgl.org'>get.webgl.org</a> " +
             "can help you.");
     this.prog = this.init_shaders();
     this.vertex_buffer = this.gl.createBuffer();
@@ -86,14 +86,14 @@ N22d.prototype.make_shader = function(type, src) {
 }
 
 N22d.prototype.resize = function() {
+    this.fov = Math.PI/4;
     var width = $(this.div).width();
     var height = $(this.div).height();
     this.canvas.width = width;
     this.canvas.height = height;
     this.gl.viewport(0, 0, width, height);
 
-    this.perspective = new Matrix(4, 4).to_perspective(Math.PI/4, width/height, .1, 30);
-    this.inverse_persp = this.perspective.inverse();
+    this.perspective = new Matrix(4, 4).to_perspective(this.fov, width/height, .1, 30);
     this.gl.uniformMatrix4fv(this.gl.getUniformLocation(this.prog,"prMatrix"),
             false, new Float32Array(this.perspective.as_webgl_array()));
 };
@@ -152,25 +152,25 @@ N22d.prototype.animate = function() {
     requestAnimFrame(frame);
 };
 
-N22d.prototype.screen2world = function(x, y) {
-    x = (2*x - this.canvas.width) / this.canvas.height;
-    y = 1 - 2*y/this.canvas.height;
-    return new Vector([1, x, y, -1/Math.tan(Math.PI/8)]);
-    var v = this.inverse_persp.times(new Vector([1, x, y, 30]));
-    return v.divide(v.a[0]);
+N22d.prototype.pos_calc_closure = function() {
+    var width = this.canvas.width, height = this.canvas.height, fov = this.fov;
+    return function(x, y) {
+        x = (2*x - width) / height;
+        y = 1 - 2*y/height;
+        return new Vector([0, x, y, -1/Math.tan(fov/2)]); //
+    };
 };
 
-N22d.prototype.ondrag = function(callback, shiftKey) {
-    return this.draggers.push(new Dragger(this.canvas, callback, shiftKey));
+N22d.prototype.ondrag = function(callback) {
+    return this.mouse_drag = new MouseDrag3D(this, callback);
 };
 
-function Colour(r, g, b) {
+var Colour = inherit(Vector, function(r, g, b) {
     if (arguments.length == 1)
         this.a = arguments[0];
     else
         this.a = [0, r, g, b];
-}
-inherit(Colour, new Vector(null));
+});
 
 Colour.prototype.hsv2rgb = function() {
     // Lineage:
@@ -234,7 +234,7 @@ Triangle.prototype.transform = function(transform) {
     return new Triangle(vs, this.colour.copy());
 };
 
-// not actually the same plane that the triangle is on...
+// not actually the plane that the triangle is on, only the same orientation
 Triangle.prototype.plane = function() {
     var plane = new Space();
     plane.expand(this.vs[0].point_minus(this.vs[2]));
@@ -250,4 +250,48 @@ function Model(triangles) {
 Model.prototype.transformed_triangles = function() {
     var transform = this.transforms.transform;
     return _.map(this.triangles, function(t) {return t.transform(transform);});
+};
+
+// stores state for a mouse drag
+function MouseDrag3D(n22d, callback) {
+    this.callback = callback;
+    this.pos_calc = n22d.pos_calc_closure();
+
+    this.dragging = false;
+    this.pos_first = null;
+    this.pos_prev = null;
+    this.pos = null;
+    this.move_event = null; // only set during event handling
+
+    // don't store el to avoid circular references in the DOM
+    var el = $(n22d.canvas);
+    _.bindAll(this);
+    el.mousedown(this._mousedown_cb);
+    el.mouseup(this._mouseup_cb);
+    el.mousemove(this._mousemove_cb);
+}
+
+MouseDrag3D.prototype._mousedown_cb = function(ev) {
+    this.dragging = true;
+    var x = ev.clientX, y = ev.clientY;
+    this.pos_first = this.pos_prev = this.pos = this.pos_calc(x, y);
+};
+
+MouseDrag3D.prototype._mouseup_cb = function(ev) {
+    this.dragging = false;
+};
+
+MouseDrag3D.prototype._mousemove_cb = function(ev) {
+    if (!this.dragging)
+        return;
+    this.pos_prev = this.pos;
+    this.pos = this.pos_calc(ev.clientX, ev.clientY);
+
+    this.move_event = ev;
+    this.callback(this);
+    this.move_event = null; // break reference cycle
+};
+
+MouseDrag3D.prototype.distance = function() {
+    return this.pos.minus(this.pos_prev).norm();
 };

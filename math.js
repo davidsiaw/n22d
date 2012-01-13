@@ -61,8 +61,10 @@ Matrix.prototype.to_translation = function(vector) {
     return this;
 };
 
-// A primitive planar rotation.
-Matrix.prototype.to_rotation = function(axis_1, axis_2, angle) {
+// A primitive planar rotation. Only angle is required.
+Matrix.prototype.to_rotation = function(angle, axis_1, axis_2) {
+    axis_1 = axis_1 || 1;
+    axis_2 = axis_2 || 0;
     var max_axis = Math.max(axis_1, axis_2);
     assert(this.rows > max_axis);
     assert(this.cols > max_axis);
@@ -71,20 +73,6 @@ Matrix.prototype.to_rotation = function(axis_1, axis_2, angle) {
     this.a[axis_1][axis_2] = Math.sin(angle);
     this.a[axis_2][axis_1] = -this.a[axis_1][axis_2];
     return this;
-};
-
-// Become a rotation that turns src to dst
-Matrix.prototype.to_rot_between = function(src, dst) {
-    src = src.normalized();
-    dst = dst.normalized();
-
-    var space = new Space();
-    space.expand([src, dst]);
-    var basis_change = space.basis_change();
-    var rot = new Matrix(2, 2).to_rotation(0, 1, -Math.arccos(src.dot(dst)));
-    rot.a[0][0] -= 1; // subtract I
-    rot.a[1][1] -= 1;
-    return this.add(basis_change.transpose().times(rot).times(basis_change));
 };
 
 // functionality copied from CanvasMatrix.js
@@ -248,10 +236,13 @@ InfiniteMatrix.prototype.to_I = function() {
     return this;
 };
 
-InfiniteMatrix.prototype.to_rotation = function(axis_1, axis_2, angle) {
+// only angle is required
+InfiniteMatrix.prototype.to_rotation = function(angle, axis_1, axis_2) {
+    axis_1 = axis_1 || 1;
+    axis_2 = axis_2 || 0;
     var size = Math.max(axis_1, axis_2) + 1;
     this.m = new Matrix(size, size);
-    this.m.to_rotation(axis_1, axis_2, angle);
+    this.m.to_rotation(angle, axis_1, axis_2);
     return this;
 };
 
@@ -327,6 +318,10 @@ Vector.prototype.dot = function(v) {
     for (var i = 0; i < Math.min(this.a.length, v.a.length); i++)
         r += this.a[i] * v.a[i];
     return r;
+};
+
+Vector.prototype.angle = function(v) {
+    return Math.arccos(this.dot(v) / this.norm() / v.norm());
 };
 
 // l2 norm
@@ -467,13 +462,17 @@ Vector.prototype.equals = function(v) {
 };
 
 // vector space
-function Space() {
+function Space(vs) {
     this.basis = [];
+    if (vs)
+        this.expand(vs);
 }
 
 Space.prototype.expand = broadcast(function(vector) {
-    // should do a sanity check for nearly dependent vectors?
-    return this.basis.push(vector.minus_space(this).normalized());
+    vector = vector.minus_space(this);
+    var norm = vector.norm();
+    if (norm)
+        return this.basis.push(vector.divide(norm));
 });
 
 Space.prototype.basis_change = function() {
@@ -485,6 +484,18 @@ Space.prototype.basis_change = function() {
     return m;
 };
 
+Space.prototype.inside = function(o) {
+    assert(o.rows == o.cols);
+    o = new Matrix(o);
+    for (var diag = 0; diag < o.rows; diag++) // subtract I
+        o.a[diag][diag] -= 1;
+    var b = this.basis_change();
+    var ret = b.transpose().times(o).times(b);
+    for (var diag = 0; diag < ret.rows; diag++) // add I
+        ret.a[diag][diag] += 1;
+    return ret;
+};
+
 // XXX not a big fan of this
 function StaticTransform(t) {
     this.transform = t || new InfiniteMatrix().to_I();
@@ -493,10 +504,10 @@ function StaticTransform(t) {
 StaticTransform.prototype.evolve = function() {};
 StaticTransform.prototype.update_transform = function() {};
 
-function Rotation(axis_1, axis_2, opt_angle) {
-    this.axis_1 = axis_1;
-    this.axis_2 = axis_2;
+function Rotation(opt_angle, axis_1, axis_2) {
     this.angle = opt_angle || 0;
+    this.axis_1 = axis_1 || 1;
+    this.axis_2 = axis_2 || 0;
     this.transform = new InfiniteMatrix();
     this.update_transform();
 
@@ -514,7 +525,7 @@ Rotation.prototype.evolve = function(time) {
 };
 
 Rotation.prototype.update_transform = function() {
-    this.transform.to_rotation(this.axis_1, this.axis_2, this.angle);
+    this.transform.to_rotation(this.angle, this.axis_1, this.axis_2);
 };
 
 function Position(opt_x) {

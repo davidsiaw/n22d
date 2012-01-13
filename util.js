@@ -1,13 +1,22 @@
 // common or generic things
 
-// super: sup(this).method.call(this, args...);
-function sup(t) {
-    return t.prototype.constructor.prototype;
+// var Child = inherit(Parent(), Child(...));
+function inherit(Parent, Child) {
+    Parent.prototype.constructor = Parent; // redundant after 1st inheritence
+    Child.Parent = Parent;
+    Child.prototype = new Parent();
+    Child.prototype.constructor = Child;
+    return Child;
 }
 
-function inherit(Cons, prototype) {
-    Cons.prototype = prototype;
-    Cons.prototype.constructor = Cons;
+// Parent(this)(...) -- not bound to this!
+function Parent(that) {
+    return that.constructor.Parent;
+}
+
+// Super(this).method.call(this, args...);
+function Super(that) {
+    return Parent(that).prototype;
 }
 
 function AssertFailed(msg) {
