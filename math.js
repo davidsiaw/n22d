@@ -299,10 +299,8 @@ InfiniteMatrix.prototype._expand = function(height, width) {
 //      other Vectors, in which case they are treated as having 0 components
 //      outside the explicitly defined area.
 // a=[0, ...] is a vector, anything else is a point
-function Vector(a, type) {
+function Vector(a) {
     this.a = a;
-    if (type !== undefined)
-        a.unshift(type);
 }
 
 Vector.prototype.isV = function() {
@@ -528,9 +526,9 @@ Rotation.prototype.update_transform = function() {
 };
 
 function Position(opt_x) {
-    this.x = opt_x || new Vector([], 0);
-    this.v = new Vector([], 0); // units per second
-    this.a = new Vector([], 0);
+    this.x = opt_x || new Vector([0]);
+    this.v = new Vector([0]); // units per second
+    this.a = new Vector([0]);
     this.last_evolve = null;
     this.transform = new InfiniteMatrix();
     this.update_transform();

@@ -14,10 +14,7 @@ function hypercube(n) { // only works for n >= 2 (because polygons are 2d)
             }
         }
     }
-    var m = new Model(triangles);
-    m.particle.center = new Vector(
-        _.map(_.range(n), function() { return -.5;}), 0);
-    return m;
+    return new Model(triangles);
 }
 
 // array of {0,1}^n (not actually permutations)
@@ -50,9 +47,9 @@ function _hypercube_face(v, i, j) {
     ];
     a[1][i] = 1;
     a[2][j] = 1;
-    a[0] = new Vector(a[0], 1);
-    a[1] = new Vector(a[1], 1);
-    a[2] = new Vector(a[2], 1);
+    a[0] = new Vector([1, a[0]]);
+    a[1] = new Vector([1, a[1]]);
+    a[2] = new Vector([1, a[2]]);
     a = new Triangle(a, colour);
 
     var b = [
@@ -63,9 +60,9 @@ function _hypercube_face(v, i, j) {
     b[0][i] = b[0][j] = 1;
     b[1][i] = 1;
     b[2][j] = 1;
-    b[0] = new Vector(b[0], 1);
-    b[1] = new Vector(b[1], 1);
-    b[2] = new Vector(b[2], 1);
+    b[0] = new Vector([1, b[0]]);
+    b[1] = new Vector([1, b[1]]);
+    b[2] = new Vector([1, b[2]]);
     b = new Triangle(b, colour);
 
     return [a, b];
@@ -82,7 +79,7 @@ function _side_colour(i) {
 // returns <2*n_circle*n_loops> triangles
 function klein_bottle(n_circle, n_loops) {
     var loops = new Array(n_loops);
-    var trans = new InfiniteMatrix().to_translation(new Vector([0, 2], 0));
+    var trans = new InfiniteMatrix().to_translation(new Vector([0, 0, 2]));
     var torus_rot = new InfiniteMatrix();
     var mobius_rot = new InfiniteMatrix();
     var offset_rot = new InfiniteMatrix();
@@ -116,7 +113,7 @@ function klein_bottle(n_circle, n_loops) {
 function circle(n) {
     var p = new Array(n);
     var r = new Matrix(3, 3);
-    p[0] = new Vector([1, 0], 1);
+    p[0] = new Vector([1, 1, 0]);
     for (var i = 1; i < n; i++)
         p[i] = r.to_rotation(i/n * 2*Math.PI, 1, 2).times(p[0]);
     return p;
