@@ -101,44 +101,11 @@ N22d.prototype.resize = function() {
 N22d.prototype.draw = function() {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
+    var light = new Vector([1]); // light at camera
     for (var i = 0; i < this.models.length; i++)
-        this._draw_triangles(this.models[i].transformed_triangles());
+        this.models[i].draw(this, light);
 
     this.gl.flush();
-};
-
-N22d.prototype._draw_triangles = function(triangles) {
-    var data = new Float32Array(6 * 3 * triangles.length);
-    var light = new Vector([1]); // light at camera
-    var i = 0;
-    for (var j = 0; j < triangles.length; j++) {
-        var triangle = triangles[j];
-        var plane = triangle.plane();
-        for (var k = 0; k < 3; k++) {
-            data[i++] = triangle.vs[k].a[1];
-            data[i++] = triangle.vs[k].a[2];
-            data[i] = 0;
-            for (var l = 3; l < triangle.vs[k].a.length; l++)
-                data[i] += triangle.vs[k].a[l];
-            i++;
-
-            var light_vector = triangle.vs[k].point_minus(light);
-            var normal = light_vector.minus_space(plane);
-            if (normal.norm() == 0)
-                var colour = triangle.colour.times(0);
-            else {
-                var diffuse = normal.normalized().dot(light_vector.normalized());
-                var colour = triangle.colour.times(Math.pow(diffuse, 1));
-            }
-            for (var l = 0; l < 3; l++)
-                data[i++] = colour.a[l];
-        }
-    }
-
-    var gl = this.gl;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-    gl.drawArrays(gl.TRIANGLES, 0, 3 * triangles.length);
 };
 
 N22d.prototype.animate = function() {
@@ -243,13 +210,45 @@ Triangle.prototype.plane = function() {
 };
     
 function Model(triangles) {
+    this._data = new Float32Array(6 * 3 * triangles.length);
     this.triangles = triangles;
     this.transforms = new TransformChain();
 }
 
-Model.prototype.transformed_triangles = function() {
+Model.prototype.draw = function(n22d, light) {
     var transform = this.transforms.transform;
-    return _.map(this.triangles, function(t) {return t.transform(transform);});
+    var triangles = _.map(this.triangles, function(t) {return t.transform(transform);});
+    var data = this._data;
+
+    var i = 0;
+    for (var j = 0; j < triangles.length; j++) {
+        var triangle = triangles[j];
+        var plane = triangle.plane();
+        for (var k = 0; k < 3; k++) {
+            data[i++] = triangle.vs[k].a[1];
+            data[i++] = triangle.vs[k].a[2];
+            data[i] = 0;
+            for (var l = 3; l < triangle.vs[k].a.length; l++)
+                data[i] += triangle.vs[k].a[l];
+            i++;
+
+            var light_vector = triangle.vs[k].point_minus(light);
+            var normal = light_vector.minus_space(plane);
+            if (normal.norm() == 0)
+                var colour = triangle.colour.times(0);
+            else {
+                var diffuse = normal.normalized().dot(light_vector.normalized());
+                var colour = triangle.colour.times(Math.pow(diffuse, 1));
+            }
+            for (var l = 0; l < 3; l++)
+                data[i++] = colour.a[l];
+        }
+    }
+
+    var gl = n22d.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, n22d.vertex_buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    gl.drawArrays(gl.TRIANGLES, 0, 3 * triangles.length);
 };
 
 // stores state for a mouse drag
