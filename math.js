@@ -224,20 +224,19 @@ Matrix.prototype.as_webgl_array = function() {
             a[0][1], a[0][2], a[0][3], a[0][0]];
 };
 
-// needs a better name, not actually infinite
 // acts as I outside the explicitly defined area
 // You don't have to pass opt_matrix if you want to use one of the to_ methods.
-function InfiniteMatrix(opt_matrix) {
+function BigMatrix(opt_matrix) {
     this.m = opt_matrix;
 }
 
-InfiniteMatrix.prototype.to_I = function() {
+BigMatrix.prototype.to_I = function() {
     this.m = new Matrix(0, 0);
     return this;
 };
 
 // only angle is required
-InfiniteMatrix.prototype.to_rotation = function(angle, axis_1, axis_2) {
+BigMatrix.prototype.to_rotation = function(angle, axis_1, axis_2) {
     axis_1 = axis_1 || 1;
     axis_2 = axis_2 || 0;
     var size = Math.max(axis_1, axis_2) + 1;
@@ -246,31 +245,28 @@ InfiniteMatrix.prototype.to_rotation = function(angle, axis_1, axis_2) {
     return this;
 };
 
-InfiniteMatrix.prototype.to_translation = function(vector) {
+BigMatrix.prototype.to_translation = function(vector) {
     this.m = new Matrix(vector.a.length, 1);
     this.m.to_translation(vector);
     return this;
 };
 
-InfiniteMatrix.prototype.to_swap = function(row_1, row_2) {
+BigMatrix.prototype.to_swap = function(row_1, row_2) {
     var size = Math.max(row_1, row_2) + 1;
     this.m = new Matrix(size, size).to_swap(row_1, row_2);
     return this;
 };
 
-InfiniteMatrix.prototype.transpose = function() {
-    return new InfiniteMatrix(this.m.transpose());
+BigMatrix.prototype.transpose = function() {
+    return new BigMatrix(this.m.transpose());
 };
 
-// this implementation dependends on the properties of InfiniteMatrix
-// and Vector but I think the assumptions are reasonable for anything
-// arithmetic that you could want to do on a computer
-InfiniteMatrix.prototype.times = broadcast(function(o) {
-    if (o instanceof InfiniteMatrix) {
+BigMatrix.prototype.times = broadcast(function(o) {
+    if (o instanceof BigMatrix) {
         var size = Math.max(this.m.rows, this.m.cols, o.m.rows, o.m.cols);
         var a = this._expand(size, size);
         var b = o._expand(size, size);
-        return new InfiniteMatrix(a.times(b));
+        return new BigMatrix(a.times(b));
     } else if (o instanceof Vector) {
         var rows = Math.max(this.m.rows, o.a.length);
         var middle = Math.max(rows, this.m.cols, o.a.length);
@@ -282,7 +278,7 @@ InfiniteMatrix.prototype.times = broadcast(function(o) {
 });
 
 // expand for multiplication
-InfiniteMatrix.prototype._expand = function(height, width) {
+BigMatrix.prototype._expand = function(height, width) {
     var r = new Matrix(height, width).to_I();
     var copy_h = Math.min(height, this.m.rows);
     var copy_w = Math.min(width, this.m.cols);
@@ -295,7 +291,7 @@ InfiniteMatrix.prototype._expand = function(height, width) {
 // vectors' infiniteness matches whatever you try to operate on
 // them with:
 //    - finite when you multiply them by finite matrices and 
-//    - infinite (expanding) when you combine them with InfiniteMatrix's and
+//    - infinite (expanding) when you combine them with BigMatrix's and
 //      other Vectors, in which case they are treated as having 0 components
 //      outside the explicitly defined area.
 // a=[0, ...] is a vector, anything else is a point
@@ -495,7 +491,7 @@ Space.prototype.inside = function(o) {
 
 // XXX not a big fan of this
 function StaticTransform(t) {
-    this.transform = t || new InfiniteMatrix().to_I();
+    this.transform = t || new BigMatrix().to_I();
 }
 
 StaticTransform.prototype.evolve = function() {};
@@ -505,7 +501,7 @@ function Rotation(opt_angle, axis_1, axis_2) {
     this.angle = opt_angle || 0;
     this.axis_1 = axis_1 || 1;
     this.axis_2 = axis_2 || 0;
-    this.transform = new InfiniteMatrix();
+    this.transform = new BigMatrix();
     this.update_transform();
 
     this.velocity = 0; // radians per second
@@ -530,7 +526,7 @@ function Position(opt_x) {
     this.v = new Vector([0]); // units per second
     this.a = new Vector([0]);
     this.last_evolve = null;
-    this.transform = new InfiniteMatrix();
+    this.transform = new BigMatrix();
     this.update_transform();
 }
 
@@ -551,7 +547,7 @@ Position.prototype.update_transform = function() {
 // a chain of lazily evaluated transforms
 function TransformChain(a) {
     this.a = a || [];
-    this.transform = new InfiniteMatrix();
+    this.transform = new BigMatrix();
     this.update_transform();
 }
 

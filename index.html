@@ -34,14 +34,14 @@
             // handle on a ball
             var handle_prev = ball.grab(mouse_drag.pos_prev);
             var handle = ball.grab(mouse_drag.pos);
-            var swap = new InfiniteMatrix().to_I();
+            var swap = new BigMatrix().to_I();
             var space = new Space([handle_prev, handle]);
             if (space.basis.length != 2)
                 return;
             var rot = space.inside(new Matrix(2, 2).to_rotation(mouse_drag.distance()*Math.PI*2));
             if (mouse_drag.move_event.shiftKey)
                 swap.to_swap(3, 4);
-            ui_rot.transform = swap.times(new InfiniteMatrix(rot)).times(swap).times(ui_rot.transform);
+            ui_rot.transform = swap.times(new BigMatrix(rot)).times(swap).times(ui_rot.transform);
         });
         n22d.animate();
     });

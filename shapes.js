@@ -79,10 +79,10 @@ function _side_colour(i) {
 // returns <2*n_circle*n_loops> triangles
 function klein_bottle(n_circle, n_loops) {
     var loops = new Array(n_loops);
-    var trans = new InfiniteMatrix().to_translation(new Vector([0, 0, 2]));
-    var torus_rot = new InfiniteMatrix();
-    var mobius_rot = new InfiniteMatrix();
-    var offset_rot = new InfiniteMatrix();
+    var trans = new BigMatrix().to_translation(new Vector([0, 0, 2]));
+    var torus_rot = new BigMatrix();
+    var mobius_rot = new BigMatrix();
+    var offset_rot = new BigMatrix();
 
     var circle_0 = circle(n_circle); // original circle
     var circle_prev = trans.times(circle_0); // previous circle
