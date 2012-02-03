@@ -5,15 +5,13 @@ function BallUI(model, radius) {
 
 BallUI.prototype.grab = function(mouse_ray) {
     var pos = this.model.transforms.transform.times(new Vector([1]));
-    pos = new Vector(pos.a.slice(0, 4)); // XXX
-    pos.a[0] = 0; // XXX
     var vs = this._intersect(mouse_ray, pos);
     if (vs.length) {
         var v = _.min(vs, function(v) { return v.norm(); });
-        return v.minus(pos);
+        v.a[0] = 1; //
+        return v.point_minus(pos);
     } else {
-        mouse_ray.a[3] = 0; // XXX
-        return mouse_ray.times(3 / mouse_ray.norm());
+        return mouse_ray.times(this.radius / mouse_ray.norm());
     }
 };
 

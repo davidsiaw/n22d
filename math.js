@@ -365,11 +365,9 @@ Vector.prototype.minus_space = function(space) {
 // if the first components (a[0]) cancel out, returns a vector between the two
 // otherwise returns a point on the line between the two points.
 Vector.prototype.point_plus = function(other) {
-    if (other.a.length > this.a.length)
-        return other.point_plus(this);
     assert(this.isP());
     assert(other.isP());
-    var answer = this.copy(); // this is always the longer one
+    var answer = this.copy(Math.max(this.a.length, other.a.length));
     for (var i = 0; i < other.a.length; i++)
         answer.a[i] += other.a[i];
     return answer;
@@ -385,12 +383,12 @@ Vector.prototype.proj_onto = function(onto) {
 
 // copy, optionally to a vector with a different number of dimensions
 Vector.prototype.copy = function(opt_length) {
-    if (opt_length === undefined)
-        opt_length = this.a.length;
-    var a = new Array(opt_length);
-    var copy_length = Math.min(opt_length, this.a.length);
+    var a = new Array(opt_length === undefined ? this.a.length : opt_length);
+    var copy_length = Math.min(a.length, this.a.length);
     for (var i = 0; i < copy_length; i++)
         a[i] = this.a[i];
+    for (var i = copy_length; i < a.length; i++)
+        a[i] = 0;
     return new this.constructor(a);
 };
 
