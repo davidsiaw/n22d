@@ -87,13 +87,12 @@ N22d.prototype.make_shader = function(type, src) {
 
 N22d.prototype.resize = function() {
     this.fov = Math.PI/4;
-    var width = $(this.div).width();
-    var height = $(this.div).height();
-    this.canvas.width = width;
-    this.canvas.height = height;
-    this.gl.viewport(0, 0, width, height);
+    var size = Math.min($(this.div).width(), $(window).height());
+    this.canvas.width = size;
+    this.canvas.height = size;
+    this.gl.viewport(0, 0, size, size);
 
-    this.perspective = new Matrix(4, 4).to_perspective(this.fov, width/height, .1, 30);
+    this.perspective = new Matrix(4, 4).to_perspective(this.fov, 1, .1, 30);
     this.gl.uniformMatrix4fv(this.gl.getUniformLocation(this.prog,"prMatrix"),
             false, new Float32Array(this.perspective.as_webgl_array()));
 };
