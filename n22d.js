@@ -5,6 +5,7 @@
 function N22d(div, models) {
     assert(!div.children().length);
 
+    this.last_draw_time = 0;
     this.mouse_drag = null;
     this.models = models || [];
     this.div = div;
@@ -98,13 +99,19 @@ N22d.prototype.resize = function() {
 };
 
 N22d.prototype.draw = function() {
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+    var start = new Date().getTime();
 
-    var light = new Vector([1]); // light at camera
-    for (var i = 0; i < this.models.length; i++)
-        this.models[i].draw(this, light);
+    if (_.any(this.models, function(m) { return m.needs_draw() })) {
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
-    this.gl.flush();
+        var light = new Vector([1]); // light at camera
+        for (var i = 0; i < this.models.length; i++)
+            if (this.models[i].needs_draw())
+                this.models[i].draw(this, light);
+
+        this.gl.flush();
+    }
+    this.last_draw_time = new Date().getTime() - start;
 };
 
 N22d.prototype.animate = function() {
@@ -207,15 +214,24 @@ Triangle.prototype.plane = function() {
     plane.expand(this.vs[1].point_minus(this.vs[2]));
     return plane;
 };
-    
+
 function Model(triangles) {
     this._data = new Float32Array(6 * 3 * triangles.length);
+    this._last_transform = null;
     this.triangles = triangles;
     this.transforms = new TransformChain();
 }
 
+// assumes triangles don't change 
+Model.prototype.needs_draw = function() {
+    return !this._last_transform ||
+        !this.transforms.transform.equals(this._last_transform);
+};
+
 Model.prototype.draw = function(n22d, light) {
     var transform = this.transforms.transform;
+    this._last_transform = new BigMatrix(transform);
+
     var triangles = _.map(this.triangles, function(t) {return t.transform(transform);});
     var data = this._data;
 

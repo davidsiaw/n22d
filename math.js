@@ -227,7 +227,10 @@ Matrix.prototype.as_webgl_array = function() {
 // acts as I outside the explicitly defined area
 // You don't have to pass opt_matrix if you want to use one of the to_ methods.
 function BigMatrix(opt_matrix) {
-    this.m = opt_matrix;
+    if (opt_matrix instanceof BigMatrix)
+        this.m = new Matrix(opt_matrix.m);
+    else
+        this.m = opt_matrix;
 }
 
 BigMatrix.prototype.to_I = function() {
@@ -286,6 +289,25 @@ BigMatrix.prototype._expand = function(height, width) {
         for (var j = 0; j < copy_w; j++)
             r.a[i][j] = this.m.a[i][j];
     return r;
+};
+
+BigMatrix.prototype.get = function(row, col) {
+    if (row < this.m.rows && col < this.m.cols)
+        return this.m.a[row][col];
+    else if (row != col)
+        return 0;
+    else
+        return 1;
+};
+
+BigMatrix.prototype.equals = function(o) {
+    var max_rows = Math.max(this.m.rows, o.m.rows);
+    var max_cols = Math.max(this.m.cols, o.m.cols);
+    for (var i = 0; i < max_rows; i++)
+        for (var j = 0; j < max_cols; j++)
+            if (this.get(i, j) != o.get(i, j))
+                return false;
+    return true;
 };
 
 // vectors' infiniteness matches whatever you try to operate on
