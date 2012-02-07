@@ -3,7 +3,7 @@
  * models: [Model, ...] add and remove models whenever you want.
  */
 function N22d(div, models) {
-    assert(!div.children().length);
+    assert(!div.childElements().length);
 
     this.last_draw_time = 0;
     this.mouse_drag = null;
@@ -13,8 +13,8 @@ function N22d(div, models) {
         return this.error(
             "Your browser doesn't support WebGL. For this to work " +
             "you need to <a href='http://get.webgl.org'>get WebGL</a>.");
-    this.canvas = $('<canvas></canvas>')[0];
-    this.div.append(this.canvas);
+    this.canvas = new Element('canvas');
+    this.div.update(this.canvas);
     this.gl = this.canvas.getContext("experimental-webgl");
     if (!this.gl)
         this.error(
@@ -42,7 +42,7 @@ function N22d(div, models) {
 }
 
 N22d.prototype.error = function(msg) {
-    this.div.append($('<span>'+msg+'</span>'));
+    this.div.update(new Element('span').update(msg));
     throw new Error(msg);
 };
 
@@ -88,7 +88,8 @@ N22d.prototype.make_shader = function(type, src) {
 
 N22d.prototype.resize = function() {
     this.fov = Math.PI/4;
-    var size = Math.min($(this.div).width(), $(window).height());
+    var size = Math.min(new Element.Layout(this.div).get('width'),
+                        document.viewport.getHeight());
     this.canvas.width = size;
     this.canvas.height = size;
     this.gl.viewport(0, 0, size, size);
@@ -278,16 +279,15 @@ function MouseDrag3D(n22d, callback) {
     this.move_event = null; // only set during event handling
 
     // don't store el to avoid circular references in the DOM
-    var el = $(n22d.canvas);
-    _.bindAll(this);
-    el.mousedown(this._mousedown_cb);
-    el.mouseup(this._mouseup_cb);
-    el.mousemove(this._mousemove_cb);
+    var el = n22d.canvas;
+    el.observe('mousedown', this._mousedown_cb.bind(this));
+    el.observe('mouseup', this._mouseup_cb.bind(this));
+    el.observe('mousemove', this._mousemove_cb.bind(this));
 }
 
 MouseDrag3D.prototype._mousedown_cb = function(ev) {
     this.dragging = true;
-    var x = ev.clientX, y = ev.clientY;
+    var x = ev.offsetX, y = ev.offsetY;
     this.pos_first = this.pos_prev = this.pos = this.pos_calc(x, y);
 };
 
@@ -299,7 +299,7 @@ MouseDrag3D.prototype._mousemove_cb = function(ev) {
     if (!this.dragging)
         return;
     this.pos_prev = this.pos;
-    this.pos = this.pos_calc(ev.clientX, ev.clientY);
+    this.pos = this.pos_calc(ev.offsetX, ev.offsetY);
 
     this.move_event = ev;
     this.callback(this);

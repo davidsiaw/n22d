@@ -11,7 +11,12 @@ BallUI.prototype.grab = function(mouse_ray) {
         v.a[0] = 1; //
         return v.point_minus(pos);
     } else {
-        return mouse_ray.times(this.radius / mouse_ray.norm());
+        // pick a point on the sphere that is kinda close to where the user
+        // clicked. No good rigorous justification here, could probably be
+        // done better.
+        var tangent = mouse_ray.times(pos.a[3] / mouse_ray.a[3]);
+        tangent.a[0] = 1;
+        return tangent.point_minus(pos).normalized().times(this.radius);
     }
 };
 
