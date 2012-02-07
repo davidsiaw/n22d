@@ -102,7 +102,7 @@ N22d.prototype.resize = function() {
 N22d.prototype.draw = function() {
     var start = new Date().getTime();
 
-    if (_.any(this.models, function(m) { return m.needs_draw() })) {
+    if (this.models.any(function(m) { return m.needs_draw(); })) {
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
         var light = new Vector([1]); // light at camera
@@ -116,13 +116,12 @@ N22d.prototype.draw = function() {
 };
 
 N22d.prototype.animate = function() {
-    var t = this;
-    function frame() {
-        var time = (new Date()).getTime();
-        _.map(t.models, function(m) { m.transforms.evolve(time); });
-        t.draw();
+    var frame = function() {
+        var time = new Date().getTime();
+        this.models.each(function(m) { m.transforms.evolve(time); });
+        this.draw();
         requestAnimFrame(frame);
-    }
+    }.bind(this);
     requestAnimFrame(frame);
 };
 
@@ -230,12 +229,13 @@ Model.prototype.needs_draw = function() {
 };
 
 Model.prototype.draw = function(n22d, light) {
-    var transform = this.transforms.transform;
-    this._last_transform = new BigMatrix(transform);
+    this._last_transform = new BigMatrix(this.transforms.transform);
 
-    var triangles = _.map(this.triangles, function(t) {return t.transform(transform);});
+    var triangles = this.triangles.map(function(t) {
+        return t.transform(this.transforms.transform);
+    }, this);
+
     var data = this._data;
-
     var i = 0;
     for (var j = 0; j < triangles.length; j++) {
         var triangle = triangles[j];

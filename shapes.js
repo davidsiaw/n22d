@@ -101,12 +101,12 @@ function klein_bottle(n_circle, n_loops) {
 
         var transform = torus_rot.times(trans).times(mobius_rot).times(offset_rot);
         var circle_i = transform.times(circle_0);
-        var points = _.flatten(_.zip(circle_prev, circle_i));
+        var points = circle_prev.zip(circle_i).flatten();
         loops[i-1] = triangle_loop(points, new Colour(0, 0.4, 1));
         circle_prev = circle_i;
     }
 
-    return _.flatten(loops);
+    return loops.flatten();
 }
 
 // circle with radius 1 on the 1-2 plane

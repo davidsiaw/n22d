@@ -416,13 +416,13 @@ Vector.prototype.copy = function(opt_length) {
 
 // expand to length, filling with 0s
 Vector.prototype._expand = function(length) {
-    var a = this.a;
-    return new this.constructor(_.range(length).map(function(i) {
-        if (i < a.length)
-            return a[i];
-        else
-            return 0;
-    }));
+    var a = new Array(length);
+    var copy_length = Math.min(this.a.length, length);
+    for (var i = 0; i < copy_length; i++)
+        a[i] = this.a[i];
+    for (; i < length; i++)
+        a[i] = 0;
+    return new this.constructor(a);
 };
 
 Vector.prototype.to_0 = function() {
@@ -489,7 +489,7 @@ Space.prototype.expand = broadcast(function(vector) {
 });
 
 Space.prototype.basis_change = function() {
-    var cols = _.max(this.basis, function(v) { return v.a.length; }).a.length;
+    var cols = this.basis.max(function(v) { return v.a.length; });
     var m = new Matrix(this.basis.length, cols).to_0();
     for (var i = 0; i < this.basis.length; i++)
         for (var j = 0; j < this.basis[i].a.length; j++)

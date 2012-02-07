@@ -7,7 +7,8 @@ BallUI.prototype.grab = function(mouse_ray) {
     var pos = this.model.transforms.transform.times(new Vector([1]));
     var vs = this._intersect(mouse_ray, pos);
     if (vs.length) {
-        var v = _.min(vs, function(v) { return v.norm(); });
+        var v = vs[0];
+        vs.each(function(w) { if (w.norm() < v.norm()) v = w; });
         v.a[0] = 1; //
         return v.point_minus(pos);
     } else {
@@ -29,12 +30,10 @@ BallUI.prototype._intersect = function(ray_velocity, pos) {
     var x2 = v.a[1]*v.a[1] + v.a[2]*v.a[2] + v.a[3]*v.a[3];
     var x1 = -2*v.a[1]*c.a[1] - 2*v.a[2]*c.a[2] - 2*v.a[3]*c.a[3];
     var x0 = c.a[1]*c.a[1] + c.a[2]*c.a[2] + c.a[3]*c.a[3] - r*r;
-    var vs = _.map(
-        solve_quadratic(x2, x1, x0),
-        function(s) {
-            s = v.times(s);
-            return s;
-        });
+    var vs = solve_quadratic(x2, x1, x0).map(function(s) {
+        s = v.times(s);
+        return s;
+    });
     return vs;
 }
 
