@@ -1,7 +1,7 @@
 // common or generic things
 var AssertFailed = Class.create();
 AssertFailed.prototype = Object.extend(new Error, {
-    initialize: function($super, msg) { $super(msg) }
+    initialize: function(msg) { this.message = msg; }
 });
 
 function assert(exp, message) {

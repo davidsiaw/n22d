@@ -1,3 +1,8 @@
+var WebGLError = Class.create();
+WebGLError.prototype = Object.extend(new Error, {
+    initialize: function(msg) { this.message = msg; }
+});
+
 /* N-dimensional renderer that uses WebGL.
  * div: <div />
  * models: [Model, ...] add and remove models whenever you want.
@@ -11,17 +16,12 @@ var N22d = Class.create({
         this.models = models || [];
         this.div = div;
         if (!window.WebGLRenderingContext)
-            return this.error(
-                "Your browser doesn't support WebGL. For this to work " +
-                "you need to <a href='http://get.webgl.org'>get WebGL</a>.");
+            throw new WebGLError('no WebGL support');
         this.canvas = new Element('canvas');
         this.div.update(this.canvas);
         this.gl = this.canvas.getContext("experimental-webgl");
         if (!this.gl)
-            this.error(
-                "WebGL isn't working. Maybe " +
-                "<a href='http://get.webgl.org'>get.webgl.org</a> " +
-                "can help you.");
+            throw new WebGLError("can't get WebGL context");
 
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.clearDepth(1.0);
