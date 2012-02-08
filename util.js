@@ -1,28 +1,8 @@
 // common or generic things
-
-// var Child = inherit(Parent(), Child(...));
-function inherit(Parent, Child) {
-    Parent.prototype.constructor = Parent; // redundant after 1st inheritence
-    Child.Parent = Parent;
-    Child.prototype = new Parent();
-    Child.prototype.constructor = Child;
-    return Child;
-}
-
-// Parent(this)(...) -- not bound to this!
-function Parent(that) {
-    return that.constructor.Parent;
-}
-
-// Super(this).method.call(this, args...);
-function Super(that) {
-    return Parent(that).prototype;
-}
-
-function AssertFailed(msg) {
-    Error.call(this, msg);
-}
-inherit(AssertFailed, new Error());
+var AssertFailed = Class.create();
+AssertFailed.prototype = Object.extend(new Error, {
+    initialize: function($super, msg) { $super(msg) }
+});
 
 function assert(exp, message) {
     if (!exp)
