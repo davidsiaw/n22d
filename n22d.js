@@ -22,22 +22,12 @@ var N22d = Class.create({
                 "WebGL isn't working. Maybe " +
                 "<a href='http://get.webgl.org'>get.webgl.org</a> " +
                 "can help you.");
-        this.prog = this.init_shaders();
-        this.vertex_buffer = this.gl.createBuffer();
-        
-        var gl = this.gl;
-        var pos = gl.getAttribLocation(this.prog, "vPos");
-        var colour = gl.getAttribLocation(this.prog, "vColour");
-        gl.enableVertexAttribArray(pos);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
-        gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 6*4, 0);
-        gl.enableVertexAttribArray(colour);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
-        gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
 
-        gl.enable(gl.DEPTH_TEST);
-        gl.clearDepth(1.0);
-        gl.clearColor(1, 1, 1, 1);
+        this.gl.enable(this.gl.DEPTH_TEST);
+        this.gl.clearDepth(1.0);
+        this.gl.clearColor(1, 1, 1, 1);
+        this.vertex_buffer = this.gl.createBuffer();
+        this.prog = this.init_shaders_simple();
 
         this.resize();
     },
@@ -47,7 +37,7 @@ var N22d = Class.create({
         throw new Error(msg);
     },
 
-    init_shaders: function() {
+    init_shaders_simple: function() {
         var vertex_shader = this.make_shader(this.gl.VERTEX_SHADER, [
             'uniform mat4 prMatrix;',
             'attribute vec3 vPos;',
@@ -74,6 +64,17 @@ var N22d = Class.create({
         this.gl.attachShader(prog, fragment_shader);
         this.gl.linkProgram(prog);
         this.gl.useProgram(prog);
+
+        var gl = this.gl;
+        var pos = gl.getAttribLocation(prog, "vPos");
+        var colour = gl.getAttribLocation(prog, "vColour");
+        gl.enableVertexAttribArray(pos);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+        gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 6*4, 0);
+        gl.enableVertexAttribArray(colour);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+        gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
+
         return prog;
     },
 
