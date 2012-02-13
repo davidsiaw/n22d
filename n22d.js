@@ -1,7 +1,10 @@
-var WebGLError = Class.create();
-WebGLError.prototype = Object.extend(new Error, {
+var N22dError = Class.create();
+N22dError.prototype = Object.extend(new Error, {
     initialize: function(msg) { this.message = msg; }
 });
+
+var WebGLError = Class.create(N22dError);
+var ShaderCompileError = Class.create(N22dError);
 
 /* N-dimensional renderer that uses WebGL.
  * div: <div />
@@ -19,22 +22,16 @@ var N22d = Class.create({
             throw new WebGLError('no WebGL support');
         this.canvas = new Element('canvas');
         this.div.update(this.canvas);
-        this.gl = this.canvas.getContext("experimental-webgl");
+        this.gl = WebGLDebugUtils.makeDebugContext(WebGLUtils.setupWebGL(this.canvas));
         if (!this.gl)
             throw new WebGLError("can't get WebGL context");
 
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.clearDepth(1.0);
         this.gl.clearColor(1, 1, 1, 1);
-        this.vertex_buffer = this.gl.createBuffer();
-        this.prog = this.init_shaders_simple();
+        this.prog = this.init_shaders_4d();
 
         this.resize();
-    },
-
-    error: function(msg) {
-        this.div.update(new Element('span').update(msg));
-        throw new Error(msg);
     },
 
     init_shaders_simple: function() {
@@ -65,15 +62,28 @@ var N22d = Class.create({
         this.gl.linkProgram(prog);
         this.gl.useProgram(prog);
 
-        var gl = this.gl;
-        var pos = gl.getAttribLocation(prog, "vPos");
-        var colour = gl.getAttribLocation(prog, "vColour");
-        gl.enableVertexAttribArray(pos);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
-        gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 6*4, 0);
-        gl.enableVertexAttribArray(colour);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
-        gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
+        return prog;
+    },
+
+    init_shaders_4d: function() {
+        var vs = $('4d-vs').textContent;
+        var vertex_shader = this.make_shader(this.gl.VERTEX_SHADER, vs);
+        var fragment_shader = this.make_shader(this.gl.FRAGMENT_SHADER, [
+            '#ifdef GL_ES',
+            'precision highp float;',
+            '#endif',
+            'varying vec4 f_colour;',
+
+            'void main(void) {',
+            '    gl_FragColor = f_colour;',
+            '}'
+        ].join('\n'));
+
+        var prog = this.gl.createProgram();
+        this.gl.attachShader(prog, vertex_shader);
+        this.gl.attachShader(prog, fragment_shader);
+        this.gl.linkProgram(prog);
+        this.gl.useProgram(prog);
 
         return prog;
     },
@@ -84,21 +94,18 @@ var N22d = Class.create({
         gl.shaderSource(shader, src);
         gl.compileShader(shader);
         if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
-            this.error(id + ": " + gl.getShaderInfoLog(shader));
+            throw new ShaderCompileError(gl.getShaderInfoLog(shader));
         return shader;
     },
 
     resize: function() {
         this.fov = Math.PI/4;
-        var size = Math.min(new Element.Layout(this.div).get('width'),
+        this.width =  Math.min(new Element.Layout(this.div).get('width'),
                             document.viewport.getHeight());
-        this.canvas.width = size;
-        this.canvas.height = size;
-        this.gl.viewport(0, 0, size, size);
-
-        this.perspective = new Matrix(4, 4).to_perspective(this.fov, 1, .1, 30);
-        this.gl.uniformMatrix4fv(this.gl.getUniformLocation(this.prog,"prMatrix"),
-                false, new Float32Array(this.perspective.as_webgl_array()));
+        this.height = this.width
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+        this.gl.viewport(0, 0, this.width, this.height);
     },
 
     draw: function() {
@@ -117,11 +124,27 @@ var N22d = Class.create({
         this.last_draw_time = new Date().getTime() - start;
     },
 
+    draw4d: function() {
+        var start = new Date().getTime();
+
+        if (this.models.any(function(m) { return m.needs_draw(); })) {
+            this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+            var light = new Vector([1]); // light at camera
+            for (var i = 0; i < this.models.length; i++)
+                if (this.models[i].needs_draw())
+                    this.models[i].draw4d(this, light);
+
+            this.gl.flush();
+        }
+        this.last_draw_time = new Date().getTime() - start;
+    },
+
     animate: function() {
         var frame = function() {
             var time = new Date().getTime();
             this.models.each(function(m) { m.transforms.evolve(time); });
-            this.draw();
+            this.draw4d();
             requestAnimFrame(frame);
         }.bind(this);
         requestAnimFrame(frame);
@@ -213,19 +236,19 @@ var Triangle = Class.create({
         return new Triangle(vs, this.colour.copy());
     },
 
-    // not actually the plane that the triangle is on, only the same orientation
-    plane: function() {
-        var plane = new Space();
-        plane.expand(this.vs[0].point_minus(this.vs[2]));
-        plane.expand(this.vs[1].point_minus(this.vs[2]));
-        return plane;
+    tangent: function() {
+        var tangent = new Space();
+        tangent.expand(this.vs[0].point_minus(this.vs[2]));
+        tangent.expand(this.vs[1].point_minus(this.vs[2]));
+        return tangent;
     }
 });
 
 var Model = Class.create({
     initialize: function(triangles) {
-        this._data = new Float32Array(6 * 3 * triangles.length);
+        this._data = null;
         this._last_transform = null;
+        this.vertex_buffer = null;
         this.triangles = triangles;
         this.transforms = new TransformChain();
     },
@@ -236,7 +259,15 @@ var Model = Class.create({
             !this.transforms.transform.equals(this._last_transform);
     },
 
+    buffer: function(n22d) {
+        this._data = new Float32Array(6 * 3 * this.triangles.length);
+        this.vertex_buffer = n22d.gl.createBuffer();
+    },
+
     draw: function(n22d, light) {
+        if (!this.vertex_buffer)
+            this.buffer(n22d);
+
         this._last_transform = new BigMatrix(this.transforms.transform);
 
         var triangles = this.triangles.map(function(t) {
@@ -247,7 +278,7 @@ var Model = Class.create({
         var i = 0;
         for (var j = 0; j < triangles.length; j++) {
             var triangle = triangles[j];
-            var plane = triangle.plane();
+            var tangent = triangle.tangent();
             for (var k = 0; k < 3; k++) {
                 data[i++] = triangle.vs[k].a[1];
                 data[i++] = triangle.vs[k].a[2];
@@ -257,7 +288,7 @@ var Model = Class.create({
                 i++;
 
                 var light_vector = triangle.vs[k].point_minus(light);
-                var normal = light_vector.minus_space(plane);
+                var normal = light_vector.minus_space(tangent);
                 if (normal.norm() == 0)
                     var colour = triangle.colour.times(0);
                 else {
@@ -270,9 +301,88 @@ var Model = Class.create({
         }
 
         var gl = n22d.gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, n22d.vertex_buffer);
+        var aspect = n22d.width / n22d.height;
+        var perspective = new Matrix(4, 4).to_perspective(n22d.fov, aspect, .1, 30);
+        gl.uniformMatrix4fv(gl.getUniformLocation(n22d.prog, "prMatrix"),
+                false, new Float32Array(perspective.as_webgl_array()));
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
         gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+
+        var pos = gl.getAttribLocation(n22d.prog, "vPos");
+        var colour = gl.getAttribLocation(n22d.prog, "vColour");
+        gl.enableVertexAttribArray(pos);
+        gl.enableVertexAttribArray(colour);
+        gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 6*4, 0);
+        gl.vertexAttribPointer(colour, 3, gl.FLOAT, false, 6*4, 3*4);
+
         gl.drawArrays(gl.TRIANGLES, 0, 3 * triangles.length);
+    },
+
+    buffer4d: function(n22d) {
+        var data = this._data = new Float32Array(15*3*this.triangles.length);
+        this.vertex_buffer = n22d.gl.createBuffer();
+        var i = 0;
+        var copy = function(vector, start, length) {
+            assert(vector.a.length <= start + length);
+            for (var z = start; z < vector.a.length; z++, length--)
+                data[i++] = vector.a[z];
+            for (; length; length--)
+                data[i++] = 0;
+        };
+
+        this.triangles.each(function(triangle) {
+            var tangent = triangle.tangent();
+            for (var j = 0; j < triangle.vs.length; j++) {
+                copy(triangle.vs[j], 1, 4);
+                copy(tangent.basis[0], 1, 4);
+                copy(tangent.basis[1], 1, 4);
+                copy(triangle.colour, 0, 3);
+            }
+        });
+
+        var gl = n22d.gl;
+        var prog = n22d.prog;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+
+        var vertex = gl.getAttribLocation(prog, "vertex");
+        var tangent1 = gl.getAttribLocation(prog, "tangent1");
+        var tangent2 = gl.getAttribLocation(prog, "tangent2");
+        var v_colour = gl.getAttribLocation(prog, "v_colour");
+        gl.enableVertexAttribArray(vertex);
+        gl.enableVertexAttribArray(tangent1);
+        gl.enableVertexAttribArray(tangent2);
+        gl.enableVertexAttribArray(v_colour);
+        gl.vertexAttribPointer(vertex, 4, gl.FLOAT, false, 15*4, 0);
+        gl.vertexAttribPointer(tangent1, 4, gl.FLOAT, false, 15*4, 4*4);
+        gl.vertexAttribPointer(tangent2, 4, gl.FLOAT, false, 15*4, 8*4);
+        gl.vertexAttribPointer(v_colour, 3, gl.FLOAT, false, 15*4, 12*4);
+    },
+
+    draw4d: function(n22d, light) {
+        assert(this.transforms.transform.m.rows <= 5);
+        assert(this.transforms.transform.m.cols <= 5);
+        this._last_transform = new BigMatrix(this.transforms.transform);
+        if (!this.vertex_buffer)
+            this.buffer4d(n22d);
+        var gl = n22d.gl;
+        var prog = n22d.prog;
+
+        var aspect = n22d.width / n22d.height;
+        var translation = this.transforms.transform.times(new Vector([1]));
+        var rotation = this.transforms.transform.submatrix(1, 5, 1, 5).transpose();
+        var projection = new Matrix(4, 4).to_perspective(n22d.fov, aspect, .1, 30);
+        gl.uniform4fv(gl.getUniformLocation(prog, "translation"),
+                translation.copy(5).a.slice(1, 5));
+        gl.uniformMatrix4fv(gl.getUniformLocation(prog, "rotation"),
+                false, new Float32Array(rotation.a.flatten()));
+        gl.uniformMatrix4fv(gl.getUniformLocation(prog, "projection"),
+                false, new Float32Array(projection.as_webgl_array()));
+        gl.uniform4fv(gl.getUniformLocation(prog, "light"),
+                light.copy(5).a.slice(1, 5));
+
+        gl.drawArrays(gl.TRIANGLES, 0, 3*this.triangles.length);
     }
 });
 

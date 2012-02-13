@@ -14,14 +14,19 @@ function broadcast(f) {
 // dimensions are constant, values are not
 var Matrix = Class.create({
     initialize: function(rows_or_matrix, opt_cols) {
-        if (opt_cols === undefined) {
-            assert(rows_or_matrix instanceof Matrix);
+        if (rows_or_matrix instanceof Matrix) {
+            assert(opt_cols === undefined);
             var matrix = rows_or_matrix;
             this.rows = matrix.rows;
             this.cols = matrix.cols;
             this.a = matrix.a.slice();
             for (var i = 0; i < this.rows; i++)
                 this.a[i] = this.a[i].slice();
+        } else if (rows_or_matrix instanceof Array) {
+            assert(opt_cols === undefined);
+            this.a = rows_or_matrix;
+            this.rows = this.a.length;
+            this.cols = this.a.length && this.a[0].length;
         } else {
             this.rows = rows_or_matrix;
             this.cols = opt_cols;
@@ -301,6 +306,14 @@ var BigMatrix = Class.create({
             return 0;
         else
             return 1;
+    },
+
+    submatrix: function(row, row_end, col0, col_end) {
+        var s = new Matrix(row_end - row, col_end - col0);
+        for (var i = 0; row < row_end; i++, row++)
+            for (var j = 0, col = col0; col < col_end; j++, col++)
+                s.a[i][j] = this.get(row, col);
+        return s;
     },
 
     equals: function(o) {
