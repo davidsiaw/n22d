@@ -529,7 +529,6 @@ var Space = Class.create({
     }
 });
 
-// XXX not a big fan of this
 var StaticTransform = Class.create({
     initialize: function(t) {
         this.transform = t || new BigMatrix().to_I();
