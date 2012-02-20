@@ -1,7 +1,25 @@
-var BallUI = Class.create({
+var BallUI = Class.create(LazyTransform, {
     initialize: function(model, radius) {
         this.model = model;
         this.radius = radius;
+        this.transform = new BigMatrix().to_I();
+    },
+
+    drag: function(mouse_drag) {
+        var handle_prev = this.grab(mouse_drag.pos_prev);
+        var handle = this.grab(mouse_drag.pos);
+
+        var space = new Space([handle_prev, handle]);
+        if (space.basis.length != 2)
+            return;
+        var rot = new Matrix(2, 2).to_rotation(mouse_drag.distance()*Math.PI*2);
+        rot = new BigMatrix(space.inside(rot));
+
+        if (mouse_drag.move_event.shiftKey) {
+            var swap = new BigMatrix().to_swap(3, 4);
+            rot = swap.times(rot).times(swap);
+        }
+        this.transform = rot.times(this.transform);
     },
 
     grab: function(mouse_ray) {

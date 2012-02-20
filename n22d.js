@@ -135,6 +135,87 @@ var GLProgram = Class.create({
     }
 });
 
+// Lazily-computed transform
+var LazyTransform = Class.create({
+    initialize: function(t) {
+        this.transform = t || new BigMatrix().to_I();
+    },
+    evolve: function() {},
+    update_transform: function() {}
+});
+
+var Rotation = Class.create(LazyTransform, {
+    initialize: function(opt_angle, axis_1, axis_2) {
+        this.angle = opt_angle || 0;
+        this.axis_1 = axis_1 || 1;
+        this.axis_2 = axis_2 || 0;
+        this.transform = new BigMatrix();
+        this.update_transform();
+
+        this.velocity = 0; // radians per second
+        this.last_evolve = null;
+    },
+
+    evolve: function(time) {
+        if (this.last_evolve) {
+            this.angle += this.velocity / 1000 * (time - this.last_evolve);
+            this.update_transform();
+        }
+        this.last_evolve = time;
+    },
+
+    update_transform: function() {
+        this.transform.to_rotation(this.angle, this.axis_1, this.axis_2);
+    }
+});
+
+var Position = Class.create(LazyTransform, {
+    initialize: function(opt_x) {
+        this.x = opt_x || new Vector([0]);
+        this.v = new Vector([0]); // units per second
+        this.a = new Vector([0]);
+        this.last_evolve = null;
+        this.transform = new BigMatrix();
+        this.update_transform();
+    },
+
+    evolve: function(time) {
+        if (this.last_evolve) {
+            var diff = time - this.last_evolve;
+            this.x = this.x.plus(this.v).plus(this.a.cpt_times(this.a).times(diff/2000));
+            this.v = this.v.plus(this.a.times(diff/1000));
+            this.update_transform();
+        }
+        this.last_evolve = time;
+    },
+
+    update_transform: function() {
+        this.transform.to_translation(this.x);
+    }
+});
+
+var TransformChain = Class.create(LazyTransform, {
+    initialize: function(a) {
+        this.a = a || [];
+        this.transform = new BigMatrix();
+        this.update_transform();
+    },
+
+    evolve: function(time) {
+        for (var i = 0; i < this.a.length; i++)
+            this.a[i].evolve(time);
+        this.update_transform();
+    },
+
+    update_transform: function() {
+        this.transform.to_I();
+        for (var i = 0; i < this.a.length; i++) {
+            this.a[i].update_transform();
+            this.transform = this.transform.times(this.a[i].transform);
+        }
+    }
+});
+
 // stores state for a mouse drag
 var MouseDrag3D = Class.create({
     initialize: function(n22d, callback) {

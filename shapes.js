@@ -1,3 +1,7 @@
+function klein_bottle_model(gl, n_circle, n_loops) {
+    return new Model(gl.TRIANGLES, klein_bottle(n_circle, n_loops));
+}
+
 // Models a Klein bottle to look like a cross between a torus and a Mobius strip.
 // n_circle: Number of points in the small radius (like in a torus).
 // n_loops: Number of loops of triangles. The model will have small holes
