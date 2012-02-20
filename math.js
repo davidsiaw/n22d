@@ -284,6 +284,8 @@ var BigMatrix = Class.create({
             var a = this._expand(this.m.rows, middle);
             var b = o._expand(middle);
             return a.times(b);
+        } else if (o instanceof Space) {
+            return new Space(this.times(o.basis));
         } else
             assert(false);
     }),
@@ -495,6 +497,8 @@ var Space = Class.create({
         if (vs)
             this.expand(vs);
     },
+
+    copy: function() { return new Space(this.basis); },
 
     expand: broadcast(function(vector) {
         vector = vector.minus_space(this);

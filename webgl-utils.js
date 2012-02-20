@@ -80,7 +80,7 @@ var makeFailHTML = function(msg) {
  * @type {string}
  */
 var GET_A_WEBGL_BROWSER = '' +
-  'This page requires a browser that supports WebGL.<br/>' +
+  "This page uses WebGL but your browser doesn't support it.<br/>" +
   '<a href="http://get.webgl.org">Click here to upgrade your browser.</a>';
 
 /**
@@ -88,8 +88,8 @@ var GET_A_WEBGL_BROWSER = '' +
  * @type {string}
  */
 var OTHER_PROBLEM = '' +
-  "It doesn't appear your computer can support WebGL.<br/>" +
-  '<a href="http://get.webgl.org/troubleshooting/">Click here for more information.</a>';
+  "WebGL is having problems.<br/>" +
+  '<a href="http://get.webgl.org/troubleshooting/">Click here to troubleshoot.</a>';
 
 /**
  * Creates a webgl context. If creation fails it will
