@@ -24,7 +24,7 @@ var N22d = Class.create({
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.clearDepth(1.0);
         this.gl.clearColor(1, 1, 1, 1);
-        this._set_program(new NdProgram(this.gl));
+        this._set_program(new Fast4dProgram(this.gl));
     },
 
     _set_program: function(prog) {
@@ -93,6 +93,13 @@ var Vertex = Class.create({
         v.loc = this.loc.copy();
         v.tangent = this.tangent.copy();
         v.colour = this.colour.copy();
+        return v;
+    },
+
+    times_left: function(m) {
+        var v = this.copy();
+        v.loc = m.times(v.loc);
+        v.tangent = m.times(v.tangent);
         return v;
     }
 });

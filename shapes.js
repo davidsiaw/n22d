@@ -15,8 +15,10 @@ function klein_bottle(n_circle, n_loops) {
     var offset_rot = new BigMatrix();
     var colour = new Vector([0, 0.4, 1]);
 
-    var circle_0 = circle(n_circle); // original circle
-    var circle_prev = trans.times(circle_0); // previous circle
+    var circle_0 = circle(n_circle, colour); // original circle
+    var circle_prev = circle_0.map(function(v) { // previous circle
+        return v.times_left(trans);
+    });
 
     for (var i = 1; i <= n_loops; i++) {
         var frac = i/n_loops;
@@ -31,8 +33,10 @@ function klein_bottle(n_circle, n_loops) {
         // never intersects itself
 
         var transform = torus_rot.times(trans).times(mobius_rot).times(offset_rot);
-        var circle_i = transform.times(circle_0);
-        loops[i-1] = triangle_loop(circle_prev, circle_i, colour);
+        var circle_i = circle_0.map(function(v) {
+            return v.times_left(transform);
+        });
+        loops[i-1] = triangle_loop(circle_prev, circle_i);
         circle_prev = circle_i;
     }
 
@@ -40,34 +44,31 @@ function klein_bottle(n_circle, n_loops) {
 }
 
 // circle with radius 1 on the 1-2 plane
-function circle(n) {
-    var p = new Array(n);
-    var r = new Matrix(3, 3);
-    p[0] = new Vector([1, 1, 0]);
-    for (var i = 1; i < n; i++)
-        p[i] = r.to_rotation(i/n * 2*Math.PI, 1, 2).times(p[0]);
-    return p;
+function circle(n, colour) {
+    var vertices = new Array(n);
+    var r = new BigMatrix();
+    vertices[0] = new Vertex();
+    vertices[0].loc = new Vector([1, 1, 0]);
+    vertices[0].tangent = new Space([
+        new Vector([0, 0, 1]),
+        new Vector([0, 0, 0, 1])
+    ]);
+    vertices[0].colour = colour;
+    for (var i = 1; i < n; i++) {
+        r.to_rotation(i/n * 2*Math.PI, 1, 2);
+        vertices[i] = vertices[0].times_left(r);
+    }
+    return vertices;
 }
 
-// make a closed loop of triangles from two offset loops of Vectors
-function triangle_loop(pt_loop_0, pt_loop_1, colour) {
+// make a closed loop of triangles from two offset loops of Vertex's
+function triangle_loop(pt_loop_0, pt_loop_1) {
     var p = pt_loop_0.zip(pt_loop_1).flatten();
     var triangles = new Array(p.length);
-    triangles[0] = triangle(p[p.length-2], p[p.length-1], p[0], colour);
-    triangles[1] = triangle(p[p.length-1], p[0], p[1], colour);
+    triangles[0] = [p[p.length-2], p[p.length-1], p[0]];
+    triangles[1] = [p[p.length-1], p[0], p[1]];
     for (var i = 2; i < p.length; i++)
-        triangles[i] = triangle(p[i], p[i-1], p[i-2], colour);
+        triangles[i] = [p[i], p[i-1], p[i-2]];
 
     return triangles;
-}
-
-function triangle(a, b, c, colour) {
-    var plane = new Space([a.point_minus(c), b.point_minus(c)]);
-    return [a, b, c].map(function(loc) {
-        var v = new Vertex();
-        v.loc = loc.copy();
-        v.tangent = plane.copy();
-        v.colour = colour.copy();
-        return v;
-    });
 }

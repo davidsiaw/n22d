@@ -111,15 +111,17 @@ var Matrix = Class.create({
         return this;
     },
 
-    times: function(other) {
+    times: broadcast(function(other) {
         if (other instanceof Vector) {
             var result = new other.constructor(new Array(this.rows));
         } else if (other instanceof Matrix) {
             var result = new other.constructor(this.rows, other.cols);
+        } else if (other instanceof Space) {
+            return new other.constructor(this.times(other.basis));
         } else
             assert(false);
         return result.to_times(this, other);
-    },
+    }),
 
     add: function(other) {
         for (var i = 0; i < other.rows; i++)
@@ -281,7 +283,7 @@ var BigMatrix = Class.create({
         } else if (o instanceof Vector) {
             var rows = Math.max(this.m.rows, o.a.length);
             var middle = Math.max(rows, this.m.cols, o.a.length);
-            var a = this._expand(this.m.rows, middle);
+            var a = this._expand(rows, middle);
             var b = o._expand(middle);
             return a.times(b);
         } else if (o instanceof Space) {
