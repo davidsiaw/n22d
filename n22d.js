@@ -78,21 +78,73 @@ var N22d = Class.create({
     }
 });
 
+var Colour = Class.create(Vector, {
+    hsv2rgb: function() {
+        // Lineage:
+        // - http://jsres.blogspot.com/2008/01/convert-hsv-to-rgb-equivalent.html
+        // - http://www.easyrgb.com/math.html
+        var h=this.a[0], s=this.a[1], v=this.a[2];
+        var r, g, b;
+        if(s==0){
+            this.a[0] = this.a[1] = this.a[2] = v;
+        }else{
+            // h must be < 1
+            var var_h = h * 6;
+            if (var_h==6) var_h = 0;
+            // Or ... var_i = floor( var_h )
+            var var_i = Math.floor( var_h );
+            var var_1 = v*(1-s);
+            var var_2 = v*(1-s*(var_h-var_i));
+            var var_3 = v*(1-s*(1-(var_h-var_i)));
+            if(var_i==0){ 
+                var_r = v; 
+                var_g = var_3; 
+                var_b = var_1;
+            }else if(var_i==1){ 
+                var_r = var_2;
+                var_g = v;
+                var_b = var_1;
+            }else if(var_i==2){
+                var_r = var_1;
+                var_g = v;
+                var_b = var_3
+            }else if(var_i==3){
+                var_r = var_1;
+                var_g = var_2;
+                var_b = v;
+            }else if (var_i==4){
+                var_r = var_3;
+                var_g = var_1;
+                var_b = v;
+            }else{ 
+                var_r = v;
+                var_g = var_1;
+                var_b = var_2
+            }
+            this.a[0] = var_r;
+            this.a[1] = var_g;
+            this.a[2] = var_b;
+        }
+        return this;
+    }
+});
+
 // A vertex of a model; encapsulates all per-vertex input to a vertex shader.
 var Vertex = Class.create({
-    initialize: function() {
+    initialize: function(loc, colour, tangent) {
         // location as a point in affine space -- coordinate [0] must be 1
-        this.loc = null;
+        this.loc = loc || null;
+        this.colour = colour || null;
         // tangent space of the surface at this vertex (for lighting)
-        this.tangent = null;
-        this.colour = null;
+        this.tangent = tangent || new Space();
+        // an empty tangent space means this vertex is always fully coloured
     },
 
     copy: function() {
         var v = new Vertex();
         v.loc = this.loc.copy();
-        v.tangent = this.tangent.copy();
         v.colour = this.colour.copy();
+        v.tangent = this.tangent.copy();
         return v;
     },
 
@@ -108,30 +160,27 @@ var Vertex = Class.create({
 // other information necessary for drawing.
 var Model = Class.create({
     initialize: function(type, vertices) {
+        this.id = uuid();
         this.type = type;
-        this.vertices = vertices;
-        this.array = null;
-        this.buffer = null;
+        this.vertices = vertices || [];
         this.transforms = new TransformChain();
         this._last_transform = null;
-    },
-
-    buffer_size: function(gl, num_floats) {
-        if (!this.array || this.array.length != num_floats) {
-            this.array = new Float32Array(num_floats);
-            this.buffer = gl.createBuffer();
-        }
     }
 });
 
 var ShaderCompileError = Class.create(N22dError);
 var GLProgram = Class.create({
-    draw_model: function(model) {
-        this.buffer_vertices(model);
+    set_light: function(light) { assert(false); },
+    set_transform: function(transform) { assert(false); },
+    set_projection: function(proj) { assert(false); },
+    draw_model: function(model) { assert(false); },
+
+    _draw_arrays: function(model) {
+        // TODO change to this.gl[model.type]
         this.gl.drawArrays(model.type, 0, model.vertices.length);
     },
 
-    make_shader: function(type, src) {
+    _make_shader: function(type, src) {
         var gl = this.gl;
         var shader = gl.createShader(type);
         gl.shaderSource(shader, src);

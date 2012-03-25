@@ -1,3 +1,96 @@
+function axes_model(gl, nd, length) {
+    var vertices = [];
+    for (var i = 0; i < nd; i++) {
+        var colour = new Colour([i/nd, 1, .75]).hsv2rgb();
+        var start = new Vector(new Array(i+1)).to_0();
+        start.a[0] = 1;
+        start.a[i+1] = -length;
+        vertices.push(new Vertex(start, colour));
+        var end = new Vector(new Array(i+1)).to_0();
+        end.a[0] = 1;
+        end.a[i+1] = length;
+        vertices.push(new Vertex(end, colour));
+    }
+    return new Model(gl.LINES, vertices);
+}
+
+function axial_discs(gl, dims, disc_res) {
+    var discs = [];
+    for (var i = 0; i < dims; i++) {
+        var colour_i = new Colour([i/dims, 1, .75]).hsv2rgb();
+        for (var j = 0; j < i; j++) {
+            var colour_j = new Colour([j/dims, 1, .75]).hsv2rgb();
+            var colour = colour_i.plus(colour_j).divide(2);
+            var disc = disc_model(gl, disc_res, colour);
+            disc.transforms.a.push(new LazyTransform(new BigMatrix().to_swap(1, j+1)));
+            disc.transforms.a.push(new LazyTransform(new BigMatrix().to_swap(2, i+1)));
+            discs.push(disc);
+        }
+    }
+    return discs;
+}
+
+// planer disc with radius 1 on the 1-2 plane (as a triangle strip)
+function disc_model(gl, n, colour) {
+    var m = new Model(gl.TRIANGLE_FAN);
+    m.vertices[0] = new Vertex(new Vector([1, 1, 0]), colour);
+    m.vertices[0].tangent.expand([
+        new Vector([0, 1]),
+        new Vector([0, 0, 1])
+    ]);
+
+    var r = new BigMatrix();
+    for (var i = 1; i < n; i++) {
+        r.to_rotation(i/n, 1, 2);
+        m.vertices.push(m.vertices[0].times_left(r));
+    }
+    m.vertices.push(m.vertices[0].copy()); // close the fan
+    m.vertices.unshift(m.vertices[0].copy()); // add the center point
+    m.vertices[0].loc.a = [1];
+    return m;
+}
+
+function grid_model(gl, nd, extents, spacing) {
+    var model = new Model(gl.LINES);
+    var coords = extents.map(function(extent) {
+        var a = [[0]];
+        for (var i = spacing; i <= extent; i += spacing) {
+            a.unshift([-i]);
+            a.push([i]);
+        }
+        return a;
+    });
+
+    for (var i = 0; i < nd; i++) {
+        var a = [[1]];
+        for (var j = 0; j < nd; j++)
+            if (i != j)
+                a = array_mult_map(a, coords[j], function(q, r) {
+                    return q.concat(r);
+                });
+
+        var colour = new Colour([i/nd+1/16, 1, 1]).hsv2rgb();
+        a.each(function(b) {
+            var c = b.slice();
+            b.splice(i+1, 0, -extents[i]);
+            model.vertices.push(new Vertex(new Vector(b), colour));
+            c.splice(i+1, 0, extents[i]);
+            model.vertices.push(new Vertex(new Vector(c), colour));
+        });
+    }
+
+    return model;
+}
+
+function array_mult_map(a, b, fn) {
+    var r = new Array(a.length * b.length);
+    var k = 0;
+    for (var i = 0; i < a.length; i++)
+        for (var j = 0; j < b.length; j++)
+            r[k++] = fn(a[i], b[j]);
+    return r;
+}
+
 function klein_bottle_model(gl, n_circle, n_loops) {
     return new Model(gl.TRIANGLES, klein_bottle(n_circle, n_loops));
 }
@@ -24,11 +117,11 @@ function klein_bottle(n_circle, n_loops) {
         var frac = i/n_loops;
 
         // offset each circle of points so we can make triangles between them
-        offset_rot.to_rotation(frac * Math.PI, 1, 2);
+        offset_rot.to_rotation(frac/2, 1, 2);
         // a half rotation like in a mobius strip
-        mobius_rot.to_rotation(frac * Math.PI, 2, 4);
+        mobius_rot.to_rotation(frac/2, 2, 4);
         // if we didn't do mobius_rot we would get a torus
-        torus_rot.to_rotation(frac * 2*Math.PI, 2, 3);
+        torus_rot.to_rotation(frac, 2, 3);
         // only torus_rot acts on coordinate 3, changing it continuously, so the surface
         // never intersects itself
 
@@ -46,16 +139,15 @@ function klein_bottle(n_circle, n_loops) {
 // circle with radius 1 on the 1-2 plane
 function circle(n, colour) {
     var vertices = new Array(n);
-    var r = new BigMatrix();
-    vertices[0] = new Vertex();
-    vertices[0].loc = new Vector([1, 1, 0]);
-    vertices[0].tangent = new Space([
+    vertices[0] = new Vertex(new Vector([1, 1, 0]), colour);
+    vertices[0].tangent.expand([
         new Vector([0, 0, 1]),
         new Vector([0, 0, 0, 1])
     ]);
-    vertices[0].colour = colour;
+
+    var r = new BigMatrix();
     for (var i = 1; i < n; i++) {
-        r.to_rotation(i/n * 2*Math.PI, 1, 2);
+        r.to_rotation(i/n, 1, 2);
         vertices[i] = vertices[0].times_left(r);
     }
     return vertices;

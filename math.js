@@ -11,6 +11,39 @@ function broadcast(f) {
     }
 }
 
+// trig functions with cleaner return values
+function cosp(a) {
+    a %= 1;
+    if (a in cosp.angles)
+        return cosp.angles[a];
+    else
+        return Math.cos(a*Math.PI*2);
+}
+cosp.angles = {};
+cosp.angles[-3/4] = 0;
+cosp.angles[-1/2] = -1;
+cosp.angles[-1/4] = 0;
+cosp.angles[0] = 1;
+cosp.angles[1/4] = 0;
+cosp.angles[1/2] = -1;
+cosp.angles[3/4] = 0;
+
+function sinp(a) {
+    a %= 1;
+    if (a in sinp.angles)
+        return sinp.angles[a];
+    else
+        return Math.sin(a*Math.PI*2);
+}
+sinp.angles = {};
+sinp.angles[-3/4] = 1;
+sinp.angles[-1/2] = 0;
+sinp.angles[-1/4] = -1;
+sinp.angles[0] = 0;
+sinp.angles[1/4] = 1;
+sinp.angles[1/2] = 0;
+sinp.angles[3/4] = -1;
+
 // dimensions are constant, values are not
 var Matrix = Class.create({
     initialize: function(rows_or_matrix, opt_cols) {
@@ -75,8 +108,8 @@ var Matrix = Class.create({
         assert(this.rows > max_axis);
         assert(this.cols > max_axis);
         this.to_I();
-        this.a[axis_1][axis_1] = this.a[axis_2][axis_2] = Math.cos(angle);
-        this.a[axis_1][axis_2] = Math.sin(angle);
+        this.a[axis_1][axis_1] = this.a[axis_2][axis_2] = cosp(angle);
+        this.a[axis_1][axis_2] = sinp(angle);
         this.a[axis_2][axis_1] = -this.a[axis_1][axis_2];
         return this;
     },
@@ -284,7 +317,7 @@ var BigMatrix = Class.create({
             var rows = Math.max(this.m.rows, o.a.length);
             var middle = Math.max(rows, this.m.cols, o.a.length);
             var a = this._expand(rows, middle);
-            var b = o._expand(middle);
+            var b = o.copy(middle);
             return a.times(b);
         } else if (o instanceof Space) {
             return new Space(this.times(o.basis));
@@ -292,7 +325,7 @@ var BigMatrix = Class.create({
             assert(false);
     }),
 
-    // expand for multiplication
+    // TODO redundant
     _expand: function(height, width) {
         var r = new Matrix(height, width).to_I();
         var copy_h = Math.min(height, this.m.rows);
@@ -343,9 +376,6 @@ var Vector = Class.create({
         this.a = a;
     },
 
-    isV: function() { return !this.a[0]; },
-    isP: function() { return Boolean(this.a[0]); },
-
     dot: function(v) {
         var r = 0;
         for (var i = 0; i < Math.min(this.a.length, v.a.length); i++)
@@ -367,12 +397,7 @@ var Vector = Class.create({
     },
 
     plus: function(other) {
-        if (other.a.length > this.a.length)
-            return other.plus(this);
-        assert(this.isV() || other.isV());
-        assert(this.isV() || this.a[0] == 1);
-        assert(other.isV() || other.a[0] == 1);
-        var answer = this.copy(); // this is always the longer one
+        var answer = this.copy(Math.max(this.a.length, other.a.length));
         for (var i = 0; i < other.a.length; i++)
             answer.a[i] += other.a[i];
         return answer;
@@ -386,7 +411,8 @@ var Vector = Class.create({
     },
 
     minus: function(other) {
-        return this.plus(other.times(-1));
+        var difference = this.copy(Math.max(this.a.length, other.a.length));
+        return difference.subtract(other);
     },
 
     minus_space: function(space) {
@@ -400,20 +426,22 @@ var Vector = Class.create({
         return result;
     },
 
-    // for adding points together
-    // if the first components (a[0]) cancel out, returns a vector between the two
+    isV: function() { return this.a[0] == 0; },
+    isP: function() { return this.a[0] != 0; },
+
+    // Add Points in an affine space together.
+    // If the a[0]s cancel out, returns a vector from one to the other,
     // otherwise returns a point on the line between the two points.
     point_plus: function(other) {
         assert(this.isP());
         assert(other.isP());
-        var answer = this.copy(Math.max(this.a.length, other.a.length));
-        for (var i = 0; i < other.a.length; i++)
-            answer.a[i] += other.a[i];
-        return answer;
+        return this.plus(other);
     },
 
     point_minus: function(other) {
-        return this.point_plus(other.times(-1));
+        assert(this.isP());
+        assert(other.isP());
+        return this.minus(other);
     },
 
     proj_onto: function(onto) {
@@ -426,18 +454,7 @@ var Vector = Class.create({
         var copy_length = Math.min(a.length, this.a.length);
         for (var i = 0; i < copy_length; i++)
             a[i] = this.a[i];
-        for (var i = copy_length; i < a.length; i++)
-            a[i] = 0;
-        return new this.constructor(a);
-    },
-
-    // expand to length, filling with 0s
-    _expand: function(length) {
-        var a = new Array(length);
-        var copy_length = Math.min(this.a.length, length);
-        for (var i = 0; i < copy_length; i++)
-            a[i] = this.a[i];
-        for (; i < length; i++)
+        for (; i < a.length; i++)
             a[i] = 0;
         return new this.constructor(a);
     },

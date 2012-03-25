@@ -40,9 +40,10 @@ var Fast4dProgram = Class.create(GLProgram, {
     initialize: function(gl) {
         var prog = this.prog = gl.createProgram();
         this.gl = gl;
+        this._vertex_buffers = {}; // indexed by model.id
 
-        var vertex_shader = this.make_shader(gl.VERTEX_SHADER, this.vertex_shader_src);
-        var fragment_shader = this.make_shader(gl.FRAGMENT_SHADER, this.fragment_shader_src);
+        var vertex_shader = this._make_shader(gl.VERTEX_SHADER, this.vertex_shader_src);
+        var fragment_shader = this._make_shader(gl.FRAGMENT_SHADER, this.fragment_shader_src);
         gl.attachShader(prog, vertex_shader);
         gl.attachShader(prog, fragment_shader);
         gl.linkProgram(prog);
@@ -79,36 +80,54 @@ var Fast4dProgram = Class.create(GLProgram, {
         this.gl.uniformMatrix4fv(this.projection, false, proj.as_webgl_array());
     },
 
-    buffer_vertices: function(model) {
-        if (model.array)
-            return; // already buffered
+    draw_model: function(model) {
+        if (model.id in this._vertex_buffers)
+            this._bind_buffer(model);
+        else {
+            this._vertex_buffers[model.id] = this.gl.createBuffer();
+            this._bind_buffer(model);
+            this._buffer_model(model);
+        }
 
+        this._draw_arrays(model);
+    },
+
+    _bind_buffer: function(model) {
         var stride = 15;
-        model.buffer_size(this.gl, stride * model.vertices.length);
-
-        var i = 0;
-        var data = model.array;
-        var copy = function(a, start, length) {
-            assert(a.length <= start + length);
-            for (var z = start; z < a.length; z++, length--)
-                data[i++] = a[z];
-            for (; length; length--)
-                data[i++] = 0;
-        };
-
-        model.vertices.each(function(v) {
-            copy(v.loc.a, 1, 4);
-            copy(v.tangent.basis[0].a, 1, 4);
-            copy(v.tangent.basis[1].a, 1, 4);
-            copy(v.colour.a, 0, 3);
-        });
-
         var gl = this.gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, model.buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vertex_buffers[model.id]);
         gl.vertexAttribPointer(this.vertex, 4, gl.FLOAT, false, stride*4, 0);
         gl.vertexAttribPointer(this.tangent1, 4, gl.FLOAT, false, stride*4, 4*4);
         gl.vertexAttribPointer(this.tangent2, 4, gl.FLOAT, false, stride*4, 8*4);
         gl.vertexAttribPointer(this.v_colour, 3, gl.FLOAT, false, stride*4, 12*4);
     },
+
+    // Buffer a Model's Vertexes into the current gl.ARRAY_BUFFER
+    _buffer_model: function(model) {
+        var stride = 15;
+        var data = new Float32Array(stride * model.vertices.length);
+        var copy = this._copy_0_padded;
+        for (var i = 0; i < model.vertices.length; i++) {
+            var v = model.vertices[i];
+            var data_i = i*stride;
+
+            copy(v.loc.a, 1, data, data_i, 4);
+            if (v.tangent.basis.length == 2) {
+                copy(v.tangent.basis[0].a, 1, data, data_i+4, 4);
+                copy(v.tangent.basis[1].a, 1, data, data_i+8, 4);
+            } else // doesn't handle lighting with a linear tangent space
+                copy([], 0, data, data_i+4, 8);
+            copy(v.colour.a, 0, data, data_i+12, 3);
+        }
+        
+        var gl = this.gl;
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    },
+
+    _copy_0_padded: function(src, src_i, dst, dst_i, length) {
+        for (; src_i < src.length; src_i++, length--)
+            dst[dst_i++] = src[src_i];
+        for (; length > 0; length--)
+            dst[dst_i++] = 0;
+    }
 });

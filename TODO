@@ -1,5 +1,12 @@
-- UI
-- Decide whether Vectors are always affine or not
-- More symmetrical-looking klein bottle model?
-- Bottle-tour demo page
-- Some sort of module system
+Visual indicators in the rotation UI?
+Auto-rotation around an interesting area
+Bottle-tour demo page
+Some sort of module system
+Form factors
+- Browsers
+- Screen size/resolution -- testable in browser
+- Input mechanisms
+
+Questions:
+- Any better way to indicate current orientation?
+- Better way to visualize surfaces in high dimensions? (Separate horizon/vanishing points for different dimensions)
