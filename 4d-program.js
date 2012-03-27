@@ -71,7 +71,7 @@ var Fast4dProgram = Class.create(GLProgram, {
         assert(transform.m.rows <= 5);
         assert(transform.m.cols <= 5);
         var translation = transform.times(new Vector([1]));
-        var rotation = transform.submatrix(1, 5, 1, 5);
+        var rotation = transform.submatrix(1, 4, 1, 4);
         this.gl.uniform4fv(this.translation, translation.copy(5).a.slice(1, 5));
         this.gl.uniformMatrix4fv(this.rotation, false, new Float32Array(rotation.transpose().a.flatten()));
     },

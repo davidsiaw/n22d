@@ -325,15 +325,14 @@ var BigMatrix = Class.create({
             assert(false);
     }),
 
-    // TODO redundant
-    _expand: function(height, width) {
-        var r = new Matrix(height, width).to_I();
-        var copy_h = Math.min(height, this.m.rows);
-        var copy_w = Math.min(width, this.m.cols);
-        for (var i = 0; i < copy_h; i++)
-            for (var j = 0; j < copy_w; j++)
-                r.a[i][j] = this.m.a[i][j];
-        return r;
+    _expand: function(rows, cols) { return this.submatrix(0, rows, 0, cols); },
+
+    submatrix: function(row, rows, col0, cols) {
+        var s = new Matrix(rows, cols);
+        for (var i = 0; i < rows; i++, row++)
+            for (var j = 0, col = col0; j < cols; j++, col++)
+                s.a[i][j] = this.get(row, col);
+        return s;
     },
 
     get: function(row, col) {
@@ -343,14 +342,6 @@ var BigMatrix = Class.create({
             return 0;
         else
             return 1;
-    },
-
-    submatrix: function(row, row_end, col0, col_end) {
-        var s = new Matrix(row_end - row, col_end - col0);
-        for (var i = 0; row < row_end; i++, row++)
-            for (var j = 0, col = col0; col < col_end; j++, col++)
-                s.a[i][j] = this.get(row, col);
-        return s;
     },
 
     equals: function(o) {
