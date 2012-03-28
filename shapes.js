@@ -1,4 +1,4 @@
-function axes_model(gl, nd, length) {
+function axes_model(nd, length) {
     var vertices = [];
     for (var i = 0; i < nd; i++) {
         var colour = new Colour([i/nd, 1, .75]).hsv2rgb();
@@ -11,28 +11,28 @@ function axes_model(gl, nd, length) {
         end.a[i+1] = length;
         vertices.push(new Vertex(end, colour));
     }
-    return new Model(gl.LINES, vertices);
+    return new Primitives('LINES', vertices);
 }
 
-function axial_discs(gl, dims, disc_res) {
-    var discs = [];
+function compass_model(dims, disc_res) {
+    var compass = new Model();
     for (var i = 0; i < dims; i++) {
         var colour_i = new Colour([i/dims, 1, .75]).hsv2rgb();
         for (var j = 0; j < i; j++) {
             var colour_j = new Colour([j/dims, 1, .75]).hsv2rgb();
             var colour = colour_i.plus(colour_j).divide(2);
-            var disc = disc_model(gl, disc_res, colour);
-            disc.transforms.a.push(new LazyTransform(new BigMatrix().to_swap(1, j+1)));
-            disc.transforms.a.push(new LazyTransform(new BigMatrix().to_swap(2, i+1)));
-            discs.push(disc);
+            var disc = disc_model(disc_res, colour);
+            disc.transforms.a.push(new LazyTransform(
+                new BigMatrix().to_swap(1, j+1).times(new BigMatrix().to_swap(2, i+1))));
+            compass.children.push(disc);
         }
     }
-    return discs;
+    return compass;
 }
 
 // planer disc with radius 1 on the 1-2 plane (as a triangle strip)
-function disc_model(gl, n, colour) {
-    var m = new Model(gl.TRIANGLE_FAN);
+function disc_model(n, colour) {
+    var m = new Primitives('TRIANGLE_FAN');
     m.vertices[0] = new Vertex(new Vector([1, 1, 0]), colour);
     m.vertices[0].tangent.expand([
         new Vector([0, 1]),
@@ -50,57 +50,12 @@ function disc_model(gl, n, colour) {
     return m;
 }
 
-function grid_model(gl, nd, extents, spacing) {
-    var model = new Model(gl.LINES);
-    var coords = extents.map(function(extent) {
-        var a = [[0]];
-        for (var i = spacing; i <= extent; i += spacing) {
-            a.unshift([-i]);
-            a.push([i]);
-        }
-        return a;
-    });
-
-    for (var i = 0; i < nd; i++) {
-        var a = [[1]];
-        for (var j = 0; j < nd; j++)
-            if (i != j)
-                a = array_mult_map(a, coords[j], function(q, r) {
-                    return q.concat(r);
-                });
-
-        var colour = new Colour([i/nd+1/16, 1, 1]).hsv2rgb();
-        a.each(function(b) {
-            var c = b.slice();
-            b.splice(i+1, 0, -extents[i]);
-            model.vertices.push(new Vertex(new Vector(b), colour));
-            c.splice(i+1, 0, extents[i]);
-            model.vertices.push(new Vertex(new Vector(c), colour));
-        });
-    }
-
-    return model;
-}
-
-function array_mult_map(a, b, fn) {
-    var r = new Array(a.length * b.length);
-    var k = 0;
-    for (var i = 0; i < a.length; i++)
-        for (var j = 0; j < b.length; j++)
-            r[k++] = fn(a[i], b[j]);
-    return r;
-}
-
-function klein_bottle_model(gl, n_circle, n_loops) {
-    return new Model(gl.TRIANGLES, klein_bottle(n_circle, n_loops));
-}
-
 // Models a Klein bottle to look like a cross between a torus and a Mobius strip.
 // n_circle: Number of points in the small radius (like in a torus).
 // n_loops: Number of loops of triangles. The model will have small holes
 //          unless n_loops is even.
 // returns <2*n_circle*n_loops> triangles
-function klein_bottle(n_circle, n_loops) {
+function klein_bottle_model(n_circle, n_loops) {
     var loops = new Array(n_loops);
     var trans = new BigMatrix().to_translation(new Vector([0, 0, 2]));
     var torus_rot = new BigMatrix();
@@ -133,7 +88,7 @@ function klein_bottle(n_circle, n_loops) {
         circle_prev = circle_i;
     }
 
-    return loops.flatten();
+    return new Primitives('TRIANGLES', loops.flatten());
 }
 
 // circle with radius 1 on the 1-2 plane

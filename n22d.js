@@ -56,7 +56,6 @@ var N22d = Class.create({
         for (var i = 0; i < this.models.length; i++) {
             var model = this.models[i];
             model.transforms.evolve(start);
-            this.prog.set_transform(model.transforms.transform);
             this.prog.draw_model(model);
         }
 
@@ -156,15 +155,28 @@ var Vertex = Class.create({
     }
 });
 
-// A Model is a collection of Vertexes to be drawn in one shot along with
-// other information necessary for drawing.
+/* A group of Primitives objects, possibly nested.
+children: [Model, ...]
+transforms: TransformChain
+*/
 var Model = Class.create({
-    initialize: function(type, vertices) {
+    initialize: function(children) {
+        this.children = children || [];
+        this.transforms = new TransformChain();
+    }
+});
+
+/* A collection of OpenGL drawing primitives.
+id: string uuid
+type: string 'TRIANGLES', 'LINE_STRIP', etc. from the names of the GL constants
+vertices: [Vertex, ...]
+*/
+var Primitives = Class.create(Model, {
+    initialize: function($super, type, vertices) {
+        $super();
         this.id = uuid();
         this.type = type;
         this.vertices = vertices || [];
-        this.transforms = new TransformChain();
-        this._last_transform = null;
     }
 });
 
@@ -173,11 +185,25 @@ var GLProgram = Class.create({
     set_light: function(light) { assert(false); },
     set_transform: function(transform) { assert(false); },
     set_projection: function(proj) { assert(false); },
-    draw_model: function(model) { assert(false); },
+    draw_primitives: function(primitives) { assert(false); },
 
-    _draw_arrays: function(model) {
-        // TODO change to this.gl[model.type]
-        this.gl.drawArrays(model.type, 0, model.vertices.length);
+    // transform is optional
+    draw_model: function(model, transform) {
+        model.transforms.update_transform();
+        transform = transform || new BigMatrix().to_I();
+        transform = transform.times(model.transforms.transform);
+        if (model.vertices) {
+            this.set_transform(transform);
+            this.draw_primitives(model);
+        } else
+            model.children.each(function(child) {
+                this.draw_model(child, transform);
+            }, this);
+    },
+
+    _draw_arrays: function(primitives) {
+        this.gl.drawArrays(this.gl[primitives.type], 0,
+                           primitives.vertices.length);
     },
 
     _make_shader: function(type, src) {

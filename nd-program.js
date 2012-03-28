@@ -43,14 +43,14 @@ var NdProgram = Class.create(GLProgram, {
         this.gl.uniformMatrix4fv(this.projection, false, proj.as_webgl_array());
     },
 
-    draw_model: function(model) {
+    draw_primitives: function(primitives) {
         var gl = this.gl;
         assert(this.transform);
         assert(this.light);
 
         var stride = 6;
-        var vertices = model.vertices;
-        var length = stride * model.vertices.length;
+        var vertices = primitives.vertices;
+        var length = stride * primitives.vertices.length;
         if (!this.data || this.data.length < length)
             this.data = new Float32Array(length);
 
@@ -83,6 +83,6 @@ var NdProgram = Class.create(GLProgram, {
         gl.vertexAttribPointer(this.vertex, 3, gl.FLOAT, false, stride*4, 0);
         gl.vertexAttribPointer(this.colour, 3, gl.FLOAT, false, stride*4, 3*4);
         gl.bufferData(gl.ARRAY_BUFFER, this.data, gl.STREAM_DRAW);
-        this._draw_arrays(model);
+        this._draw_arrays(primitives);
     }
 });

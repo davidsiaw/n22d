@@ -80,35 +80,35 @@ var Fast4dProgram = Class.create(GLProgram, {
         this.gl.uniformMatrix4fv(this.projection, false, proj.as_webgl_array());
     },
 
-    draw_model: function(model) {
-        if (model.id in this._vertex_buffers)
-            this._bind_buffer(model);
+    draw_primitives: function(primitives) {
+        if (primitives.id in this._vertex_buffers)
+            this._bind_buffer(primitives);
         else {
-            this._vertex_buffers[model.id] = this.gl.createBuffer();
-            this._bind_buffer(model);
-            this._buffer_model(model);
+            this._vertex_buffers[primitives.id] = this.gl.createBuffer();
+            this._bind_buffer(primitives);
+            this._buffer_primitives(primitives);
         }
 
-        this._draw_arrays(model);
+        this._draw_arrays(primitives);
     },
 
-    _bind_buffer: function(model) {
+    _bind_buffer: function(primitives) {
         var stride = 15;
         var gl = this.gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this._vertex_buffers[model.id]);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vertex_buffers[primitives.id]);
         gl.vertexAttribPointer(this.vertex, 4, gl.FLOAT, false, stride*4, 0);
         gl.vertexAttribPointer(this.tangent1, 4, gl.FLOAT, false, stride*4, 4*4);
         gl.vertexAttribPointer(this.tangent2, 4, gl.FLOAT, false, stride*4, 8*4);
         gl.vertexAttribPointer(this.v_colour, 3, gl.FLOAT, false, stride*4, 12*4);
     },
 
-    // Buffer a Model's Vertexes into the current gl.ARRAY_BUFFER
-    _buffer_model: function(model) {
+    // Buffer a Primitives's Vertexes into the current gl.ARRAY_BUFFER
+    _buffer_primitives: function(primitives) {
         var stride = 15;
-        var data = new Float32Array(stride * model.vertices.length);
+        var data = new Float32Array(stride * primitives.vertices.length);
         var copy = this._copy_0_padded;
-        for (var i = 0; i < model.vertices.length; i++) {
-            var v = model.vertices[i];
+        for (var i = 0; i < primitives.vertices.length; i++) {
+            var v = primitives.vertices[i];
             var data_i = i*stride;
 
             copy(v.loc.a, 1, data, data_i, 4);
