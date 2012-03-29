@@ -23,7 +23,7 @@ var Fast4dProgram = Class.create(GLProgram, {
 
         '    vec4 light_dir = normalize(v - light);',
         '    vec4 normal = light_dir - t1*dot(t1, light_dir) - t2*dot(t2, light_dir);',
-        '    float illum = pow(dot(light_dir, normalize(normal)), .75);',
+        '    float illum = pow(length(normal), .75);',
         '    illum = ambient + (1.-ambient) * illum;',
         '    f_colour = vec4(illum * v_colour, 1.);',
         '}'

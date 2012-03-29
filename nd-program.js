@@ -68,15 +68,10 @@ var NdProgram = Class.create(GLProgram, {
                 this.data[i] += loc.a[k];
             i++;
 
-            var light_vector = loc.point_minus(this.light);
-            var normal = light_vector.minus_space(tangent);
-            if (normal.norm() == 0)
-                var colour = colour.times(0);
-            else {
-                var illum = normal.normalized().dot(light_vector.normalized());
-                illum = this.ambient + (1-this.ambient)*Math.pow(illum, .75);
-                var colour = colour.times(illum, 1);
-            }
+            var light_vector = loc.point_minus(this.light).normalized();
+            var diffuse = light_vector.minus_space(tangent).norm();
+            var illum = this.ambient + (1-this.ambient)*Math.pow(diffuse, .75);
+            var colour = colour.times(illum, 1);
             for (var l = 0; l < 3; l++)
                 this.data[i++] = colour.a[l];
         }
