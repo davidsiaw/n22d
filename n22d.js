@@ -4,11 +4,12 @@ N22dError.prototype = Object.extend(new Error, {
 });
 
 /* N-dimensional renderer that uses WebGL.
- * div: <div />
- * models: [Model, ...] add and remove models whenever you want.
- */
+div: <div />
+models: [Model, ...]; change N22d.models any time.
+Program: GLProgram constructor (NdProgram by default).
+*/
 var N22d = Class.create({
-    initialize: function(div, models) {
+    initialize: function(div, models, Program) {
         assert(!div.childElements().length);
 
         this.last_draw_time = 0;
@@ -24,12 +25,13 @@ var N22d = Class.create({
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.clearDepth(1.0);
         this.gl.clearColor(1, 1, 1, 1);
-        this._set_program(new Fast4dProgram(this.gl));
+        this._set_program(new (Program || NdProgram)(this.gl));
     },
 
     _set_program: function(prog) {
         this.gl.useProgram(prog.prog);
         prog.set_light(new Vector([1]));
+        prog.set_ambient(.3);
         this.prog = prog;
         this.resize();
     },
@@ -183,6 +185,7 @@ var Primitives = Class.create(Model, {
 var ShaderCompileError = Class.create(N22dError);
 var GLProgram = Class.create({
     set_light: function(light) { assert(false); },
+    set_ambient: function(ambient) { assert(false); },
     set_transform: function(transform) { assert(false); },
     set_projection: function(proj) { assert(false); },
     draw_primitives: function(primitives) { assert(false); },

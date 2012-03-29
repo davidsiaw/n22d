@@ -37,6 +37,7 @@ var NdProgram = Class.create(GLProgram, {
         gl.enableVertexAttribArray(this.colour);
     },
 
+    set_ambient: function(ambient) { this.ambient = ambient; },
     set_light: function(light) { this.light = light; },
     set_transform: function(transform) { this.transform = transform; },
     set_projection: function(proj) {
@@ -72,8 +73,9 @@ var NdProgram = Class.create(GLProgram, {
             if (normal.norm() == 0)
                 var colour = colour.times(0);
             else {
-                var diffuse = normal.normalized().dot(light_vector.normalized());
-                var colour = colour.times(diffuse, 1);
+                var illum = normal.normalized().dot(light_vector.normalized());
+                illum = this.ambient + (1-this.ambient)*Math.pow(illum, .75);
+                var colour = colour.times(illum, 1);
             }
             for (var l = 0; l < 3; l++)
                 this.data[i++] = colour.a[l];

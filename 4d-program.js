@@ -4,6 +4,7 @@ var Fast4dProgram = Class.create(GLProgram, {
         'uniform mat4 rotation;',
         'uniform mat4 projection;',
         'uniform vec4 light;',
+        'uniform float ambient;',
 
         'attribute vec4 vertex;',
         // orthogonal basis vectors for the tangent plane
@@ -15,14 +16,16 @@ var Fast4dProgram = Class.create(GLProgram, {
 
         'void main(void) {',
         '    vec4 v = rotation*vertex + translation;',
+        '    gl_Position = projection * vec4(v[0], v[1], v[2] + v[3], 1.);',
+
         '    vec4 t1 = rotation * tangent1;',
         '    vec4 t2 = rotation * tangent2;',
 
         '    vec4 light_dir = normalize(v - light);',
         '    vec4 normal = light_dir - t1*dot(t1, light_dir) - t2*dot(t2, light_dir);',
-
-        '    gl_Position = projection * vec4(v[0], v[1], v[2] + v[3], 1.);',
-        '    f_colour = vec4(v_colour * dot(light_dir, normalize(normal)), 1.);',
+        '    float illum = pow(dot(light_dir, normalize(normal)), .75);',
+        '    illum = ambient + (1.-ambient) * illum;',
+        '    f_colour = vec4(illum * v_colour, 1.);',
         '}'
     ].join('\n'),
 
@@ -52,6 +55,7 @@ var Fast4dProgram = Class.create(GLProgram, {
         this.rotation = gl.getUniformLocation(prog, "rotation");
         this.projection = gl.getUniformLocation(prog, "projection");
         this.light = gl.getUniformLocation(prog, "light");
+        this.ambient = gl.getUniformLocation(prog, "ambient");
         this.vertex = gl.getAttribLocation(prog, "vertex");
         this.tangent1 = gl.getAttribLocation(prog, "tangent1");
         this.tangent2 = gl.getAttribLocation(prog, "tangent2");
@@ -64,6 +68,10 @@ var Fast4dProgram = Class.create(GLProgram, {
 
     set_light: function(light) {
         this.gl.uniform4fv(this.light, light.copy(5).a.slice(1, 5));
+    },
+
+    set_ambient: function(ambient) {
+        this.gl.uniform1f(this.ambient, ambient);
     },
 
     // assumes transform can be decomposed into a translation and a rotation
