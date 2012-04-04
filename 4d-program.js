@@ -97,7 +97,7 @@ var Fast4dProgram = Class.create(GLProgram, {
             this._buffer_primitives(primitives);
         }
 
-        this._draw_arrays(primitives);
+        primitives._draw_arrays(this.gl);
     },
 
     _bind_buffer: function(primitives) {
@@ -120,11 +120,16 @@ var Fast4dProgram = Class.create(GLProgram, {
             var data_i = i*stride;
 
             copy(v.loc.a, 1, data, data_i, 4);
-            if (v.tangent.basis.length == 2) {
+            if (v.tangent.basis.length == 0)
+                copy([], 0, data, data_i+4, 8);
+            else if (v.tangent.basis.length == 1) {
+                copy(v.tangent.basis[0].a, 1, data, data_i+4, 4);
+                copy([], 0, data, data_i+8, 4);
+            } else if (v.tangent.basis.length == 2) {
                 copy(v.tangent.basis[0].a, 1, data, data_i+4, 4);
                 copy(v.tangent.basis[1].a, 1, data, data_i+8, 4);
-            } else // doesn't handle lighting with a linear tangent space
-                copy([], 0, data, data_i+4, 8);
+            } else
+                assert(false);
             copy(v.colour.a, 0, data, data_i+12, 3);
         }
         

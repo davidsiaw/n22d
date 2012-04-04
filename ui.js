@@ -1,3 +1,4 @@
+/* A UI you can spin like a trackball like the one in Google Earth. */
 var BallUI = Class.create(LazyTransform, {
     initialize: function(model, radius) {
         this.model = model;

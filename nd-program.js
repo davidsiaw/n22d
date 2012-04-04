@@ -80,6 +80,6 @@ var NdProgram = Class.create(GLProgram, {
         gl.vertexAttribPointer(this.vertex, 3, gl.FLOAT, false, stride*4, 0);
         gl.vertexAttribPointer(this.colour, 3, gl.FLOAT, false, stride*4, 3*4);
         gl.bufferData(gl.ARRAY_BUFFER, this.data, gl.STREAM_DRAW);
-        this._draw_arrays(primitives);
+        primitives._draw_arrays(gl);
     }
 });

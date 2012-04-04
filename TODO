@@ -6,6 +6,7 @@ Form factors
 - Browsers
 - Screen size/resolution -- testable in browser
 - Input mechanisms
+- Handle context lost
 
 Questions:
 - Any better way to indicate current orientation?

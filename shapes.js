@@ -1,53 +1,44 @@
-function axes_model(nd, length) {
-    var vertices = [];
-    for (var i = 0; i < nd; i++) {
-        var colour = new Colour([i/nd, 1, .75]).hsv2rgb();
-        var start = new Vector(new Array(i+1)).to_0();
-        start.a[0] = 1;
-        start.a[i+1] = -length;
-        vertices.push(new Vertex(start, colour));
-        var end = new Vector(new Array(i+1)).to_0();
-        end.a[0] = 1;
-        end.a[i+1] = length;
-        vertices.push(new Vertex(end, colour));
-    }
-    return new Primitives('LINES', vertices);
-}
-
-function compass_model(dims, disc_res) {
+function compass_model(dims, circle_res) {
     var compass = new Model();
-    for (var i = 0; i < dims; i++) {
-        var colour_i = new Colour([i/dims, 1, .75]).hsv2rgb();
-        for (var j = 0; j < i; j++) {
-            var colour_j = new Colour([j/dims, 1, .75]).hsv2rgb();
-            var colour = colour_i.plus(colour_j).divide(2);
-            var disc = disc_model(disc_res, colour);
-            disc.transforms.a.push(new LazyTransform(
-                new BigMatrix().to_swap(1, j+1).times(new BigMatrix().to_swap(2, i+1))));
+    var num_discs = dims*(dims-1)/2;
+    for (var i=0, axis_1=1; axis_1 <= dims; axis_1++) {
+        for (var axis_2=1; axis_2 < axis_1; axis_2++, i++) {
+            var fill_colour = new Colour([i/num_discs, .4, 1]).hsv2rgb();
+            var border_colour = new Colour([i/num_discs, .6, 1]).hsv2rgb();
+            var disc = disc_model(circle_res, fill_colour, border_colour);
+            disc.transforms.a = [new LazyTransform(
+                new BigMatrix().to_swap(2, axis_2).times(
+                    new BigMatrix().to_swap(1, axis_1)))];
             compass.children.push(disc);
         }
     }
     return compass;
 }
 
-// planer disc with radius 1 on the 1-2 plane (as a triangle strip)
-function disc_model(n, colour) {
-    var m = new Primitives('TRIANGLE_FAN');
-    m.vertices[0] = new Vertex(new Vector([1, 1, 0]), colour);
-    m.vertices[0].tangent.expand([
-        new Vector([0, 1]),
-        new Vector([0, 0, 1])
-    ]);
+// planer disc with radius 1 on the 1-2 plane
+function disc_model(n, fill_colour, border_colour) {
+    var template = new Vertex(new Vector([1, 1, 0]), border_colour);
+    template.tangent.expand(new Vector([0, 1]));
 
+    var border = new Lines('LINE_LOOP');
+    border.vertices = vertex_circle(n, template);
+    
+    var fill = new Primitives('TRIANGLE_FAN');
+    template.colour = fill_colour;
+    template.tangent.expand(new Vector([0, 0, 1]));
+    fill.vertices = vertex_circle(n, template, true);
+    fill.vertices.unshift(fill.vertices[0].copy()); // add the center point
+    fill.vertices[0].loc.a = [1];
+
+    return new Model([fill, border]); // draw border on top of fill
+}
+
+// circle on the 1-2 plane
+function vertex_circle(num_vertices, template, closed) {
     var r = new BigMatrix();
-    for (var i = 1; i < n; i++) {
-        r.to_rotation(i/n, 1, 2);
-        m.vertices.push(m.vertices[0].times_left(r));
-    }
-    m.vertices.push(m.vertices[0].copy()); // close the fan
-    m.vertices.unshift(m.vertices[0].copy()); // add the center point
-    m.vertices[0].loc.a = [1];
-    return m;
+    return $R(0, num_vertices, !closed).map(function(i) {
+        return template.times_left(r.to_rotation(i/num_vertices, 1, 2));
+    });
 }
 
 // Models a Klein bottle to look like a cross between a torus and a Mobius strip.
@@ -63,7 +54,12 @@ function klein_bottle_model(n_circle, n_loops) {
     var offset_rot = new BigMatrix();
     var colour = new Vector([0, 0.4, 1]);
 
-    var circle_0 = circle(n_circle, colour); // original circle
+    var template = new Vertex(new Vector([1, 1, 0]), colour);
+    template.tangent.expand([
+        new Vector([0, 0, 1]),
+        new Vector([0, 0, 0, 1])
+    ]);
+    var circle_0 = vertex_circle(n_circle, template); // original circle
     var circle_prev = circle_0.map(function(v) { // previous circle
         return v.times_left(trans);
     });
@@ -91,14 +87,8 @@ function klein_bottle_model(n_circle, n_loops) {
     return new Primitives('TRIANGLES', loops.flatten());
 }
 
-// circle with radius 1 on the 1-2 plane
 function circle(n, colour) {
     var vertices = new Array(n);
-    vertices[0] = new Vertex(new Vector([1, 1, 0]), colour);
-    vertices[0].tangent.expand([
-        new Vector([0, 0, 1]),
-        new Vector([0, 0, 0, 1])
-    ]);
 
     var r = new BigMatrix();
     for (var i = 1; i < n; i++) {
