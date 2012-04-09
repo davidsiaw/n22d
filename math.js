@@ -12,37 +12,29 @@ function broadcast(f) {
 }
 
 // trig functions with cleaner return values
-function cosp(a) {
+function cos2pi(a) {
     a %= 1;
-    if (a in cosp.angles)
-        return cosp.angles[a];
+    if (a in cos2pi.angles)
+        return cos2pi.angles[a];
     else
-        return Math.cos(a*Math.PI*2);
+        return Math.cos(2*Math.PI*a);
 }
-cosp.angles = {};
-cosp.angles[-3/4] = 0;
-cosp.angles[-1/2] = -1;
-cosp.angles[-1/4] = 0;
-cosp.angles[0] = 1;
-cosp.angles[1/4] = 0;
-cosp.angles[1/2] = -1;
-cosp.angles[3/4] = 0;
+cos2pi.angles = {};
+cos2pi.angles[-3/4] = 0;
+cos2pi.angles[-1/4] = 0;
+cos2pi.angles[1/4] = 0;
+cos2pi.angles[3/4] = 0;
 
-function sinp(a) {
+function sin2pi(a) {
     a %= 1;
-    if (a in sinp.angles)
-        return sinp.angles[a];
+    if (a in sin2pi.angles)
+        return sin2pi.angles[a];
     else
-        return Math.sin(a*Math.PI*2);
+        return Math.sin(2*Math.PI*a);
 }
-sinp.angles = {};
-sinp.angles[-3/4] = 1;
-sinp.angles[-1/2] = 0;
-sinp.angles[-1/4] = -1;
-sinp.angles[0] = 0;
-sinp.angles[1/4] = 1;
-sinp.angles[1/2] = 0;
-sinp.angles[3/4] = -1;
+sin2pi.angles = {};
+sin2pi.angles[-1/2] = 0;
+sin2pi.angles[1/2] = 0;
 
 // dimensions are constant, values are not
 var Matrix = Class.create({
@@ -87,7 +79,7 @@ var Matrix = Class.create({
     },
 
     to_swap: function(row_1, row_2) {
-        this.to_I().row_swap(row_1, row_2);
+        this.to_I().swap_rows(row_1, row_2);
         return this;
     },
 
@@ -108,8 +100,8 @@ var Matrix = Class.create({
         assert(this.rows > max_axis);
         assert(this.cols > max_axis);
         this.to_I();
-        this.a[axis_1][axis_1] = this.a[axis_2][axis_2] = cosp(angle);
-        this.a[axis_1][axis_2] = sinp(angle);
+        this.a[axis_1][axis_1] = this.a[axis_2][axis_2] = cos2pi(angle);
+        this.a[axis_1][axis_2] = sin2pi(angle);
         this.a[axis_2][axis_1] = -this.a[axis_1][axis_2];
         return this;
     },
@@ -171,7 +163,7 @@ var Matrix = Class.create({
         return m;
     },
 
-    row_swap: function(i, j) {
+    swap_rows: function(i, j) {
         var tmp = this.a[i];
         this.a[i] = this.a[j];
         this.a[j] = tmp;
@@ -188,9 +180,9 @@ var Matrix = Class.create({
             for (var row = diag+1; row < u.rows; row++)
                 if (Math.abs(u.a[row][diag]) > Math.abs(u.a[max][diag]))
                     max = row;
-            p.row_swap(diag, max);
-            u.row_swap(diag, max);
-            l.row_swap(diag, max);
+            p.swap_rows(diag, max);
+            u.swap_rows(diag, max);
+            l.swap_rows(diag, max);
             l.a[diag][max] = l.a[max][diag] = 0;
             l.a[diag][diag] = l.a[max][max] = 1;
 
@@ -268,12 +260,13 @@ var Matrix = Class.create({
 
 // acts as I outside the explicitly defined area
 var BigMatrix = Class.create({
-    // You don't have to pass opt_matrix if you want to use one of the to_ methods.
     initialize: function(opt_matrix) {
         if (opt_matrix instanceof BigMatrix)
             this.m = new Matrix(opt_matrix.m);
-        else
+        else if (opt_matrix)
             this.m = opt_matrix;
+        else
+            this.to_I();
     },
 
     to_I: function() {
@@ -325,7 +318,11 @@ var BigMatrix = Class.create({
             assert(false);
     }),
 
-    _expand: function(rows, cols) { return this.submatrix(0, rows, 0, cols); },
+    _expand: function(rows, cols) {
+        rows = Math.max(this.m.rows, rows);
+        cols = Math.max(this.m.cols, cols);
+        return this.submatrix(0, rows, 0, cols);
+    },
 
     submatrix: function(row, rows, col0, cols) {
         var s = new Matrix(rows, cols);
@@ -352,6 +349,13 @@ var BigMatrix = Class.create({
                 if (this.get(i, j) != o.get(i, j))
                     return false;
         return true;
+    },
+
+    swap_rows: function(i, j) {
+        var size = Math.max(i, j) + 1;
+        this.m = this._expand(size, size);
+        this.m.swap_rows(i, j);
+        return this;
     }
 });
 

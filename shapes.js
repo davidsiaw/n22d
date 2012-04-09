@@ -1,36 +1,49 @@
 function compass_model(dims, circle_res) {
-    var compass = new Model();
-    var num_discs = dims*(dims-1)/2;
-    for (var i=0, axis_1=1; axis_1 <= dims; axis_1++) {
-        for (var axis_2=1; axis_2 < axis_1; axis_2++, i++) {
-            var fill_colour = new Colour([i/num_discs, .4, 1]).hsv2rgb();
-            var border_colour = new Colour([i/num_discs, .6, 1]).hsv2rgb();
-            var disc = disc_model(circle_res, fill_colour, border_colour);
+    var compass3 = new Model();
+    var compass4 = new Model();
+    for (var i=0, axis_2=1; axis_2 <= dims; axis_2++) {
+        for (var axis_1=1; axis_1 < axis_2; axis_1++, i++) {
+            var disc = disc_model(circle_res);
+            disc.each_vertex(function(vertex) {
+                var w1 = vertex.loc.a[1] || 0;
+                var w2 = vertex.loc.a[2] || 0;
+                var a = new Colour([(axis_1-1)/dims, 1, (w1+3)/4]).hsv2rgb();
+                var b = new Colour([(axis_2-1)/dims, 1, (w2+3)/4]).hsv2rgb();
+                w1 = Math.abs(w1);
+                w2 = Math.abs(w2);
+                if (w1 == 0 && w2 == 0)
+                    w1 = w2 = 1;
+                vertex.colour = a.times(w1).plus(b.times(w2)).divide(w1+w2);
+            });
             disc.transforms.a = [new LazyTransform(
-                new BigMatrix().to_swap(2, axis_2).times(
-                    new BigMatrix().to_swap(1, axis_1)))];
-            compass.children.push(disc);
+                new BigMatrix().swap_rows(2, axis_2).swap_rows(1, axis_1))];
+
+            if (axis_1 != 4 && axis_2 != 4)
+                compass3.children.push(disc);
+            if (axis_1 != 3 && axis_2 != 3)
+            //if (axis_1 == 4 || axis_2 == 4)
+                compass4.children.push(disc);
         }
     }
-    return compass;
+    return [compass3, compass4];
 }
 
-// planer disc with radius 1 on the 1-2 plane
-function disc_model(n, fill_colour, border_colour) {
-    var template = new Vertex(new Vector([1, 1, 0]), border_colour);
+// planar disc with radius 1 on the 1-2 plane
+function disc_model(n) {
+    var template = new Vertex(new Vector([1, 1, 0]));
     template.tangent.expand(new Vector([0, 1]));
 
     var border = new Lines('LINE_LOOP');
+    border.width = 2;
     border.vertices = vertex_circle(n, template);
-    
+
     var fill = new Primitives('TRIANGLE_FAN');
-    template.colour = fill_colour;
     template.tangent.expand(new Vector([0, 0, 1]));
     fill.vertices = vertex_circle(n, template, true);
     fill.vertices.unshift(fill.vertices[0].copy()); // add the center point
     fill.vertices[0].loc.a = [1];
 
-    return new Model([fill, border]); // draw border on top of fill
+    return new Model([fill, border]);
 }
 
 // circle on the 1-2 plane
@@ -69,12 +82,12 @@ function klein_bottle_model(n_circle, n_loops) {
 
         // offset each circle of points so we can make triangles between them
         offset_rot.to_rotation(frac/2, 1, 2);
-        // a half rotation like in a mobius strip
+        // a gradual half rotation like in a mobius strip
         mobius_rot.to_rotation(frac/2, 2, 4);
         // if we didn't do mobius_rot we would get a torus
         torus_rot.to_rotation(frac, 2, 3);
-        // only torus_rot acts on coordinate 3, changing it continuously, so the surface
-        // never intersects itself
+        // only torus_rot acts on coordinate 3, changing it continuously, so
+        // the surface never intersects itself despite appearances
 
         var transform = torus_rot.times(trans).times(mobius_rot).times(offset_rot);
         var circle_i = circle_0.map(function(v) {

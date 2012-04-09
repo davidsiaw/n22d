@@ -50,6 +50,11 @@ var N22d = Class.create({
         this.draw_async();
     },
 
+    add_viewport: function(viewport) {
+        this.viewports.push(viewport);
+        this._resize();
+    },
+
     draw_async: function() {
         return requestAnimFrame(this.draw.bind(this));
     },
@@ -124,11 +129,11 @@ var Colour = Class.create(Vector, {
             var var_1 = v*(1-s);
             var var_2 = v*(1-s*(var_h-var_i));
             var var_3 = v*(1-s*(1-(var_h-var_i)));
-            if(var_i==0){ 
-                var_r = v; 
-                var_g = var_3; 
+            if(var_i==0){
+                var_r = v;
+                var_g = var_3;
                 var_b = var_1;
-            }else if(var_i==1){ 
+            }else if(var_i==1){
                 var_r = var_2;
                 var_g = v;
                 var_b = var_1;
@@ -144,10 +149,10 @@ var Colour = Class.create(Vector, {
                 var_r = var_3;
                 var_g = var_1;
                 var_b = v;
-            }else{ 
+            }else{
                 var_r = v;
                 var_g = var_1;
-                var_b = var_2
+                var_b = var_2;
             }
             this.a[0] = var_r;
             this.a[1] = var_g;
@@ -173,9 +178,9 @@ var Vertex = Class.create({
 
     copy: function() {
         var v = new Vertex();
-        v.loc = this.loc.copy();
-        v.colour = this.colour.copy();
-        v.tangent = this.tangent.copy();
+        v.loc = copy(this.loc);
+        v.colour = copy(this.colour);
+        v.tangent = copy(this.tangent);
         return v;
     },
 
@@ -187,14 +192,24 @@ var Vertex = Class.create({
     }
 });
 
-/* A group of Primitives objects, possibly nested.
-children: [Model, ...]
+/* A group of Model and/or Primitives objects, possibly nested.
+children: [Model or Primitives, ...]
 transforms: TransformChain
 */
 var Model = Class.create({
     initialize: function(children) {
         this.children = children || [];
         this.transforms = new TransformChain();
+    },
+
+    each_vertex: function(callback, transform) {
+        this.transforms.update_transform();
+        if (transform)
+            transform = transform.times(this.transforms.transform);
+        else
+            transform = this.transforms.transform;
+        for (var i = 0; i < this.children.length; i++)
+            this.children[i].each_vertex(callback, transform);
     }
 });
 
@@ -203,12 +218,23 @@ id: string uuid
 type: string 'TRIANGLES', 'LINE_STRIP', etc. from the names of the GL constants
 vertices: [Vertex, ...]
 */
-var Primitives = Class.create(Model, {
-    initialize: function($super, type, vertices) {
-        $super();
+var Primitives = Class.create({
+    initialize: function(type, vertices) {
         this.id = uuid();
         this.type = type;
         this.vertices = vertices || [];
+        this.transforms = new TransformChain();
+    },
+
+    each_vertex: function(callback, transform) {
+        this.transforms.update_transform();
+        if (transform)
+            transform = transform.times(this.transforms.transform);
+        else
+            transform = this.transforms.transform;
+        this.vertices.each(function(vertex) {
+            callback(vertex, vertex.times_left(transform));
+        });
     },
 
     _draw_arrays: function(gl) {

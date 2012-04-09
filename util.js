@@ -16,3 +16,7 @@ function uuid() {
         return v.toString(16);
     });
 }
+
+function copy(a) {
+    return (a && a.copy()) || a;
+}
