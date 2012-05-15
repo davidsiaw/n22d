@@ -82,7 +82,7 @@ var FourD = module(function(mod) {
             var rotation = transform.submatrix(1, 4, 1, 4);
             this.gl.uniform4fv(this.translation, translation.copy(5).a.slice(1, 5));
             this.gl.uniformMatrix4fv(this.rotation, false,
-                    rotation.transpose().a.flatten()); // TODO why transpose?
+                    rotation.transpose().a.flatten());
         },
 
         set_projection: function(proj) {
