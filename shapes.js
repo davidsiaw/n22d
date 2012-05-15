@@ -1,51 +1,3 @@
-function compass_model(dims, circle_res) {
-    var compass3 = new Model();
-    var compass4 = new Model();
-    for (var i=0, axis_2=1; axis_2 <= dims; axis_2++) {
-        for (var axis_1=1; axis_1 < axis_2; axis_1++, i++) {
-            var disc = disc_model(circle_res);
-            disc.each_vertex(function(vertex) {
-                var w1 = vertex.loc.a[1] || 0;
-                var w2 = vertex.loc.a[2] || 0;
-                var a = new Colour([(axis_1-1)/dims, 1, (w1+3)/4]).hsv2rgb();
-                var b = new Colour([(axis_2-1)/dims, 1, (w2+3)/4]).hsv2rgb();
-                w1 = Math.abs(w1);
-                w2 = Math.abs(w2);
-                if (w1 == 0 && w2 == 0)
-                    w1 = w2 = 1;
-                vertex.colour = a.times(w1).plus(b.times(w2)).divide(w1+w2);
-            });
-            disc.transforms.a = [new LazyTransform(
-                new BigMatrix().swap_rows(2, axis_2).swap_rows(1, axis_1))];
-
-            if (axis_1 != 4 && axis_2 != 4)
-                compass3.children.push(disc);
-            if (axis_1 != 3 && axis_2 != 3)
-            //if (axis_1 == 4 || axis_2 == 4)
-                compass4.children.push(disc);
-        }
-    }
-    return [compass3, compass4];
-}
-
-// planar disc with radius 1 on the 1-2 plane
-function disc_model(n) {
-    var template = new Vertex(new Vector([1, 1, 0]));
-    template.tangent.expand(new Vector([0, 1]));
-
-    var border = new Lines('LINE_LOOP');
-    border.width = 2;
-    border.vertices = vertex_circle(n, template);
-
-    var fill = new Primitives('TRIANGLE_FAN');
-    template.tangent.expand(new Vector([0, 0, 1]));
-    fill.vertices = vertex_circle(n, template, true);
-    fill.vertices.unshift(fill.vertices[0].copy()); // add the center point
-    fill.vertices[0].loc.a = [1];
-
-    return new Model([fill, border]);
-}
-
 // circle on the 1-2 plane
 function vertex_circle(num_vertices, template, closed) {
     var r = new BigMatrix();
@@ -65,7 +17,7 @@ function klein_bottle_model(n_circle, n_loops) {
     var torus_rot = new BigMatrix();
     var mobius_rot = new BigMatrix();
     var offset_rot = new BigMatrix();
-    var colour = new Vector([0, 0.4, 1]);
+    var colour = new Vector([0, 0.3, .8, .8]);
 
     var template = new Vertex(new Vector([1, 1, 0]), colour);
     template.tangent.expand([
@@ -98,17 +50,6 @@ function klein_bottle_model(n_circle, n_loops) {
     }
 
     return new Primitives('TRIANGLES', loops.flatten());
-}
-
-function circle(n, colour) {
-    var vertices = new Array(n);
-
-    var r = new BigMatrix();
-    for (var i = 1; i < n; i++) {
-        r.to_rotation(i/n, 1, 2);
-        vertices[i] = vertices[0].times_left(r);
-    }
-    return vertices;
 }
 
 // make a closed loop of triangles from two offset loops of Vertex's

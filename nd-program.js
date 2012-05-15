@@ -7,11 +7,11 @@ var NdProgram = Class.create(GLProgram, {
         var vertex_shader = this._make_shader(gl.VERTEX_SHADER, [
             'uniform mat4 projection;',
             'attribute vec3 vertex;',
-            'attribute vec3 v_colour;',
+            'attribute vec4 v_colour;',
             'varying vec4 f_colour;',
             'void main(void) {',
             '    gl_Position = projection * vec4(vertex, 1.);',
-            '    f_colour = vec4(v_colour, 1.);',
+            '    f_colour = v_colour;',
             '}'
         ].join('\n'));
         var fragment_shader = this._make_shader(gl.FRAGMENT_SHADER, [
@@ -45,11 +45,12 @@ var NdProgram = Class.create(GLProgram, {
     },
 
     draw_primitives: function(primitives) {
+        // this doesn't order triangles properly for alpha blending
         var gl = this.gl;
         assert(this.transform);
         assert(this.light);
 
-        var stride = 6;
+        var stride = 7;
         var vertices = primitives.vertices;
         var length = stride * primitives.vertices.length;
         if (!this.data || this.data.length < length)
@@ -71,15 +72,15 @@ var NdProgram = Class.create(GLProgram, {
             var light_vector = loc.point_minus(this.light).normalized();
             var diffuse = light_vector.minus_space(tangent).norm();
             var illum = this.ambient + (1-this.ambient)*Math.pow(diffuse, .75);
-            var colour = colour.times(illum, 1);
             for (var l = 0; l < 3; l++)
-                this.data[i++] = colour.a[l];
+                this.data[i++] = illum * colour.a[l];
+            this.data[i++] = colour.a[3];
         }
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         gl.vertexAttribPointer(this.vertex, 3, gl.FLOAT, false, stride*4, 0);
-        gl.vertexAttribPointer(this.colour, 3, gl.FLOAT, false, stride*4, 3*4);
+        gl.vertexAttribPointer(this.colour, 4, gl.FLOAT, false, stride*4, 3*4);
         gl.bufferData(gl.ARRAY_BUFFER, this.data, gl.STREAM_DRAW);
-        primitives._draw_arrays(gl);
+        gl.drawArrays(gl[primitives.type], 0, vertices.length);
     }
 });

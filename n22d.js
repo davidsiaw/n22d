@@ -18,12 +18,13 @@ var N22d = Class.create({
         this.div = div;
         this.canvas = new Element('canvas');
         this.div.update(this.canvas);
-        this.gl = WebGLDebugUtils.makeDebugContext(WebGLUtils.setupWebGL(this.canvas));
+        this.gl = WebGLDebugUtils.makeDebugContext(
+            WebGLUtils.setupWebGL(this.canvas));
         if (!this.gl)
             return;
 
-        this.gl.enable(this.gl.DEPTH_TEST);
-        this.gl.depthFunc(this.gl.LEQUAL);
+        this.gl.enable(this.gl.BLEND);
+        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
         this.gl.clearDepth(1.0);
         this.gl.clearColor(1, 1, 1, 1);
         this._set_program(new (Program || NdProgram)(this.gl));
@@ -68,7 +69,7 @@ var N22d = Class.create({
             this.gl.clear(this.gl.DEPTH_BUFFER_BIT);
             this.gl.viewport(viewport.x, viewport.y,
                              viewport.width, viewport.height);
-            this.program.set_projection(viewport.projection);
+            this.program.set_projection(viewport.projection());
             for (var j = 0; j < viewport.models.length; j++) {
                 var model = viewport.models[j];
                 model.transforms.evolve(time);
@@ -100,8 +101,11 @@ var Viewport = Class.create({
         this.y = this.y_frac * canvas_height;
         this.width = this.width_frac * canvas_width;
         this.height = this.height_frac * canvas_height;
+    },
+
+    projection: function() {
         var aspect = this.width / this.height;
-        this.projection = new Matrix(4, 4).to_perspective(this.fov, aspect, .1, 30);
+        return new Matrix(4, 4).to_perspective(this.fov, aspect, .1, 30);
     },
 
     screen2world: function(x, y) {
@@ -202,6 +206,8 @@ var Model = Class.create({
         this.transforms = new TransformChain();
     },
 
+    // TODO each_node(), get rid of GLProgram.draw_model
+
     each_vertex: function(callback, transform) {
         this.transforms.update_transform();
         if (transform)
@@ -228,17 +234,35 @@ var Primitives = Class.create({
 
     each_vertex: function(callback, transform) {
         this.transforms.update_transform();
-        if (transform)
-            transform = transform.times(this.transforms.transform);
-        else
-            transform = this.transforms.transform;
+        transform = transform || new BigMatrix.to_I();
+        transform = transform.times(this.transforms.transform);
         this.vertices.each(function(vertex) {
             callback(vertex, vertex.times_left(transform));
         });
     },
 
-    _draw_arrays: function(gl) {
-        gl.drawArrays(gl[this.type], 0, this.vertices.length);
+    indices_by_triangle_depth: function() {
+        this.transforms.update_transform();
+        transform = this.transforms.transform;
+
+        var depth_trans = new BigMatrix(new Matrix(1, 5).to_0());
+        depth_trans.m.a[0][3] = depth_trans.m.a[0][4] = 1;
+        depth_trans = depth_trans.times(transform);
+
+        var triangle_indices = $R(0, this.vertices.length/3, true);
+        triangle_indices = triangle_indices.sortBy(function (i) {
+            var depth = 0;
+            for (var j = 0; j < 3; j++)
+                depth += depth_trans.times(this.vertices[3*i+j].loc).a[0];
+            return depth;
+        }, this);
+
+        var vertex_indices = new Array(this.vertices.length);
+        for (var i = 0; i < triangle_indices.length; i++)
+            for (var j = 0; j < 3; j++)
+                vertex_indices[3*i+j] = 3*triangle_indices[i]+j;
+
+        return vertex_indices;
     }
 });
 
@@ -256,8 +280,8 @@ var Lines = Class.create(Primitives, {
 
 var ShaderCompileError = Class.create(N22dError);
 var GLProgram = Class.create({
-    set_light: function(light) { assert(false); },
-    set_ambient: function(ambient) { assert(false); },
+    set_light: function(light) {},
+    set_ambient: function(ambient) {},
     set_transform: function(transform) { assert(false); },
     set_projection: function(proj) { assert(false); },
     draw_primitives: function(primitives) { assert(false); },

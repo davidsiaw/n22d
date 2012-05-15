@@ -20,3 +20,9 @@ function uuid() {
 function copy(a) {
     return (a && a.copy()) || a;
 }
+
+function module(f) {
+    var mod = {};
+    f(mod);
+    return mod;
+}

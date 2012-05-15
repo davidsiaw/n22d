@@ -1,16 +1,3 @@
-// wrapper to make single-arg functions transparently map over arrays
-function broadcast(f) {
-    return function(o) {
-        if (o instanceof Array) {
-            var r = new o.constructor(o.length);
-            for (var i = 0; i < o.length; i++)
-                r[i] = f.call(this, o[i]);
-            return r;
-        } else
-            return f.call(this, o);
-    }
-}
-
 // trig functions with cleaner return values
 function cos2pi(a) {
     a %= 1;
@@ -38,27 +25,20 @@ sin2pi.angles[1/2] = 0;
 
 // dimensions are constant, values are not
 var Matrix = Class.create({
-    initialize: function(rows_or_matrix, opt_cols) {
-        if (rows_or_matrix instanceof Matrix) {
-            assert(opt_cols === undefined);
-            var matrix = rows_or_matrix;
-            this.rows = matrix.rows;
-            this.cols = matrix.cols;
-            this.a = matrix.a.slice();
-            for (var i = 0; i < this.rows; i++)
-                this.a[i] = this.a[i].slice();
-        } else if (rows_or_matrix instanceof Array) {
-            assert(opt_cols === undefined);
-            this.a = rows_or_matrix;
-            this.rows = this.a.length;
-            this.cols = this.a.length && this.a[0].length;
-        } else {
-            this.rows = rows_or_matrix;
-            this.cols = opt_cols;
-            this.a = new Array(this.rows);
-            for (var i = 0; i < this.rows; i++)
-                this.a[i] = new Array(this.cols);
-        }
+    initialize: function(rows, cols) {
+        this.rows = rows;
+        this.cols = cols;
+        this.a = new Array(this.rows);
+        for (var i = 0; i < this.rows; i++)
+            this.a[i] = new Array(this.cols);
+    },
+
+    copy: function() {
+        var o = new this.constructor(this.rows, this.cols);
+        for (var i = 0; i < this.rows; i++)
+            for (var j = 0; j < this.cols; j++)
+                o.a[i][j] = this.a[i][j];
+        return o;
     },
 
     // change to the zero matrix
@@ -136,8 +116,10 @@ var Matrix = Class.create({
         return this;
     },
 
-    times: broadcast(function(other) {
-        if (other instanceof Vector) {
+    times: function(other) {
+        if (other instanceof Array)
+            return other.map(this.times, this);
+        else if (other instanceof Vector) {
             var result = new other.constructor(new Array(this.rows));
         } else if (other instanceof Matrix) {
             var result = new other.constructor(this.rows, other.cols);
@@ -146,7 +128,7 @@ var Matrix = Class.create({
         } else
             assert(false);
         return result.to_times(this, other);
-    }),
+    },
 
     add: function(other) {
         for (var i = 0; i < other.rows; i++)
@@ -255,22 +237,23 @@ var Matrix = Class.create({
                 a[2][1], a[2][2], a[2][3], a[2][0],
                 a[3][1], a[3][2], a[3][3], a[3][0],
                 a[0][1], a[0][2], a[0][3], a[0][0]];
-    }
+     }
 });
 
-// acts as I outside the explicitly defined area
+
+/* A sort of unbounded matrix.
+ *  m: Matrix defining the top left corner.
+ *  get: function(row, col) defining the area outside of m.
+ */
 var BigMatrix = Class.create({
-    initialize: function(opt_matrix) {
-        if (opt_matrix instanceof BigMatrix)
-            this.m = new Matrix(opt_matrix.m);
-        else if (opt_matrix)
-            this.m = opt_matrix;
-        else
-            this.to_I();
+    initialize: function(matrix, get_fn) {
+        this.m = matrix || new Matrix(0,0);
+        this.get = get_fn || BigMatrix.I_GET_FN;
     },
 
     to_I: function() {
         this.m = new Matrix(0, 0);
+        this.get = BigMatrix.I_GET_FN;
         return this;
     },
 
@@ -296,12 +279,21 @@ var BigMatrix = Class.create({
         return this;
     },
 
+    to_perspective: function(fov, aspect, z_near, z_far) {
+        this.m = new Matrix(4, 4).to_perspective(fov, aspect, z_near, z_far);
+        this.get = BigMatrix.ZERO_GET_FN;
+        return this;
+    },
+
     transpose: function() {
         return new BigMatrix(this.m.transpose());
     },
 
-    times: broadcast(function(o) {
-        if (o instanceof BigMatrix) {
+    // this does the wrong thing for .get()
+    times: function(o) {
+        if (o instanceof Array)
+            return o.map(this.times, this);
+        else if (o instanceof BigMatrix) {
             var size = Math.max(this.m.rows, this.m.cols, o.m.rows, o.m.cols);
             var a = this._expand(size, size);
             var b = o._expand(size, size);
@@ -316,7 +308,7 @@ var BigMatrix = Class.create({
             return new Space(this.times(o.basis));
         } else
             assert(false);
-    }),
+    },
 
     _expand: function(rows, cols) {
         rows = Math.max(this.m.rows, rows);
@@ -332,16 +324,9 @@ var BigMatrix = Class.create({
         return s;
     },
 
-    get: function(row, col) {
-        if (row < this.m.rows && col < this.m.cols)
-            return this.m.a[row][col];
-        else if (row != col)
-            return 0;
-        else
-            return 1;
-    },
-
     equals: function(o) {
+        if (this.get != o.get)
+            return false;
         var max_rows = Math.max(this.m.rows, o.m.rows);
         var max_cols = Math.max(this.m.cols, o.m.cols);
         for (var i = 0; i < max_rows; i++)
@@ -358,6 +343,23 @@ var BigMatrix = Class.create({
         return this;
     }
 });
+
+// possibilities for BigMatrix.get
+BigMatrix.ZERO_GET_FN = function(row, col) {
+    if (row < this.m.rows && col < this.m.cols)
+        return this.m.a[row][col];
+    else
+        return 0;
+};
+
+BigMatrix.I_GET_FN = function(row, col) {
+    if (row < this.m.rows && col < this.m.cols)
+        return this.m.a[row][col];
+    else if (row != col)
+        return 0;
+    else
+        return 1;
+};
 
 // vectors' infiniteness matches whatever you try to operate on
 // them with:
@@ -514,12 +516,14 @@ var Space = Class.create({
 
     copy: function() { return new Space(this.basis); },
 
-    expand: broadcast(function(vector) {
+    expand: function(vector) {
+        if (vector instanceof Array)
+            return vector.map(this.expand, this);
         vector = vector.minus_space(this);
         var norm = vector.norm();
         if (norm)
             return this.basis.push(vector.divide(norm));
-    }),
+    },
 
     basis_change: function() {
         var cols = this.basis.max(function(v) { return v.a.length; });
@@ -530,9 +534,13 @@ var Space = Class.create({
         return m;
     },
 
+    /* Do an operation as if it were inside this space.
+     * o: Matrix
+     * returns: Matrix
+     */
     inside: function(o) {
         assert(o.rows == o.cols);
-        o = new Matrix(o);
+        o = o.copy();
         for (var diag = 0; diag < o.rows; diag++) // subtract I
             o.a[diag][diag] -= 1;
         var b = this.basis_change();
