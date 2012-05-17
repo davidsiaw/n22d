@@ -53,7 +53,7 @@ var NdProgram = Class.create(GLProgram, {
         var stride = 7;
         var vertices = primitives.vertices;
         var length = stride * primitives.vertices.length;
-        if (!this.data || this.data.length < length)
+        if (!this.data || this.data.length != length)
             this.data = new Float32Array(length);
 
         var i = 0;
@@ -70,7 +70,7 @@ var NdProgram = Class.create(GLProgram, {
             i++;
 
             var light_vector = loc.point_minus(this.light).normalized();
-            var diffuse = light_vector.minus_space(tangent).norm();
+            var diffuse = tangent.ortho_vector(light_vector).norm();
             var illum = this.ambient + (1-this.ambient)*Math.pow(diffuse, .75);
             for (var l = 0; l < 3; l++)
                 this.data[i++] = illum * colour.a[l];

@@ -20,10 +20,7 @@ function klein_bottle_model(n_circle, n_loops) {
     var colour = new Vector([0, 0.3, .8, .8]);
 
     var template = new Vertex(new Vector([1, 1, 0]), colour);
-    template.tangent.expand([
-        new Vector([0, 0, 1]),
-        new Vector([0, 0, 0, 1])
-    ]);
+    template.tangent.add([new Vector([0, 0, 1]), new Vector([0, 0, 0, 1])]);
     var circle_0 = vertex_circle(n_circle, template); // original circle
     var circle_prev = circle_0.map(function(v) { // previous circle
         return v.times_left(trans);
@@ -62,4 +59,69 @@ function triangle_loop(pt_loop_0, pt_loop_1) {
         triangles[i] = [p[i], p[i-1], p[i-2]];
 
     return triangles;
+}
+
+// radius 1, centered at origin
+function tetrahedron() {
+    var points = [new Vector([1, 1])];
+    var r = new BigMatrix().to_rotation(Math.acos(1/3)/2/Math.PI);
+    points.push(r.times(points[0]));
+    r.to_rotation(1/3, 2, 3);
+    points.push(r.times(points[1]));
+    points.push(r.times(points[2]));
+    var triangles = [];
+    for (var i = 0; i < 4; i++)
+        for (var j = 0; j < 4; j++)
+            if (i != j)
+                triangles.push(points[i]);
+    return triangles;
+}
+
+// http://www.opengl.org.ru/docs/pg/0208.html
+function icosahedron() {
+    var x = .525731112119133606;
+    var z = .850650808352039932;
+     
+    var vertices = [    
+       [-x, 0, z], [x, 0, z], [-x, 0, -z], [x, 0, -z],
+       [0, z, x], [0, z, -x], [0, -z, x], [0, -z, -x],
+       [z, x, 0], [-z, x, 0], [z, -x, 0], [-z, -x, 0]
+    ].map(function (v) { return new Vector(v); });
+
+    return [
+       [0,4,1], [0,9,4], [9,5,4], [4,5,8], [4,8,1],    
+       [8,10,1], [8,3,10], [5,3,8], [5,2,3], [2,7,3],    
+       [7,10,3], [7,6,10], [7,11,6], [11,0,6], [0,1,6], 
+       [6,1,10], [9,0,11], [9,11,2], [9,2,5], [7,2,11]
+    ].map(function(vs) { return vs.map(function(i) { return vertices[i]; }); });
+}
+
+// split a triangle into four along the surface of a sphere
+// center at origin, radius = 1
+function sphere_subdivide(a, b, c) {
+    var d = a.plus(b).normalized();
+    var e = b.plus(c).normalized();
+    var f = a.plus(c).normalized();
+    return [[d, e, f], [a, d, f], [b, d, e], [c, e, f]];
+}
+
+function sphere(n) {
+    var s = icosahedron();
+    for (var i = 0; i < n; i++) {
+        s = s.map(function (t) { return sphere_subdivide(t[0], t[1], t[2]); });
+        s = [].concat.apply([], s);
+    }
+
+    var R3 = new Space([new Vector([1]), new Vector([0,1]), new Vector([0,0,1])]);
+    return s.flatten().map(function(vector) {
+        var v = vector.copy();
+        v.a.unshift(1);
+        v = new Vertex(v);
+        v.tangent = R3.minus(new Space([vector]));
+        assert(v.tangent.basis.length == 2);
+        v.tangent.basis[0].a.unshift(0);
+        v.tangent.basis[1].a.unshift(0);
+        v.colour = new Vector([1, 0, 0, .5]);
+        return v;
+    });
 }

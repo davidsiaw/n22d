@@ -26,3 +26,14 @@ function module(f) {
     f(mod);
     return mod;
 }
+
+function diff(a, b) {
+    var same = true;
+    for (var i = 0; i < a.length; i++)
+        if (a[i] != b[i]) {
+            same = false;
+            console.log(''+i + ' ' + a[i] + ' ' + b[i]);
+        }
+    if (same)
+        console.log('same');
+}

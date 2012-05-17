@@ -72,7 +72,7 @@ var N22d = Class.create({
             this.program.set_projection(viewport.projection());
             for (var j = 0; j < viewport.models.length; j++) {
                 var model = viewport.models[j];
-                model.transforms.evolve(time);
+                model.transforms.evolve(time); // bug: this should be recursive
                 this.program.draw_model(model);
             }
         }
@@ -205,8 +205,6 @@ var Model = Class.create({
         this.children = children || [];
         this.transforms = new TransformChain();
     },
-
-    // TODO each_node(), get rid of GLProgram.draw_model
 
     each_vertex: function(callback, transform) {
         this.transforms.update_transform();

@@ -1,4 +1,4 @@
-// trig functions with cleaner return values
+// trig functions with cleaner return values (and args)
 function cos2pi(a) {
     a %= 1;
     if (a in cos2pi.angles)
@@ -257,6 +257,13 @@ var BigMatrix = Class.create({
         return this;
     },
 
+    to_scale: function(a) {
+        this.m = new Matrix(a.length, a.length).to_0();
+        for (var i = 0; i < a.length; i++)
+            this.m.a[i][i] = a[i];
+        return this;
+    },
+
     // only angle is required
     to_rotation: function(angle, axis_1, axis_2) {
         axis_1 = axis_1 || 1;
@@ -412,17 +419,6 @@ var Vector = Class.create({
         return difference.subtract(other);
     },
 
-    minus_space: function(space) {
-        var length = this.a.length;
-        for (var i = 0; i < space.basis.length; i++)
-            if (space.basis[i].a.length > length)
-                length = space.basis[i].a.length;
-        var result = this.copy(length);
-        for (var i = 0; i < space.basis.length; i++)
-            result.subtract(result.proj_onto(space.basis[i]));
-        return result;
-    },
-
     isV: function() { return this.a[0] == 0; },
     isP: function() { return this.a[0] != 0; },
 
@@ -439,10 +435,6 @@ var Vector = Class.create({
         assert(this.isP());
         assert(other.isP());
         return this.minus(other);
-    },
-
-    proj_onto: function(onto) {
-        return onto.times(this.dot(onto) / onto.dot(onto));
     },
 
     // copy, optionally to a vector with a different number of dimensions
@@ -511,18 +503,51 @@ var Space = Class.create({
     initialize: function(vs) {
         this.basis = [];
         if (vs)
-            this.expand(vs);
+            this.add(vs);
     },
 
-    copy: function() { return new Space(this.basis); },
+    copy: function() { return new Space(this); },
 
-    expand: function(vector) {
-        if (vector instanceof Array)
-            return vector.map(this.expand, this);
-        vector = vector.minus_space(this);
-        var norm = vector.norm();
-        if (norm)
-            return this.basis.push(vector.divide(norm));
+    project_vector: function(vector) {
+        var p = new Vector([]);
+        for (var i = 0; i < this.basis.length; i++)
+            p = p.plus(this.basis[i].times(this.basis[i].dot(vector)));
+        return p;
+    },
+
+    ortho_vector: function(vector) {
+        return vector.minus(this.project_vector(vector));
+    },
+
+    // expands if ortho_norm/vector_norm >= tolerance
+    add_vector: function(vector, tolerance) {
+        tolerance = tolerance || 1e-14; // figured this out experimentally
+        var ortho = this.ortho_vector(vector);
+        var ortho_norm = ortho.norm();
+        var vector_norm = vector.norm();
+        if (vector_norm && ortho_norm/vector_norm >= tolerance)
+            return this.basis.push(ortho.divide(ortho_norm));
+    },
+
+    add: function(space, tolerance) {
+        if (space instanceof Vector)
+            return this.add_vector(space, tolerance);
+        else if (space instanceof Array)
+            var vectors = space;
+        else
+            var vectors = space.basis;
+
+        for (var i = 0; i < vectors.length; i++)
+            this.add_vector(vectors[i], tolerance);
+
+        return this;
+    },
+
+    minus: function(space) {
+        var diff = new Space();
+        for (var i = 0; i < this.basis.length; i++)
+            diff.add_vector(space.ortho_vector(this.basis[i]));
+        return diff;
     },
 
     basis_change: function() {
