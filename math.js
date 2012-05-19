@@ -388,7 +388,7 @@ var Vector = Class.create({
     },
 
     angle: function(v) {
-        return Math.arccos(this.dot(v) / this.norm() / v.norm());
+        return Math.acos(this.dot(v) / this.norm() / v.norm());
     },
 
     // l2 norm

@@ -3,7 +3,7 @@ function klein_bottle_demo(div) {
     var scale = new BigMatrix().to_scale([1,3.5,3.5,3.5]);
     var ball = sphere(3).each(function (v) { v.loc = scale.times(v.loc); });
     bottle.vertices = bottle.vertices.concat(ball);
-    var bottle_pos = new Position(new Vector([0, 0, 0, -8.5]));
+    var bottle_pos = new Position(new Vector([0, 0, 0, -9.5]));
     var bottle_rot = new LazyTransform();
     bottle_rot.transform.to_rotation(1/4, 1, 3);
 

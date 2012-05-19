@@ -429,9 +429,5 @@ var MouseDrag3D = Class.create({
         this.move_event = ev;
         this.callback(this);
         this.move_event = null; // break reference cycle
-    },
-
-    distance: function() {
-        return this.pos.minus(this.pos_prev).norm();
     }
 });

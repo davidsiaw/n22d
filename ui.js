@@ -13,7 +13,7 @@ var BallUI = Class.create(LazyTransform, {
         var space = new Space([handle_prev, handle]);
         if (space.basis.length != 2)
             return;
-        var rot = new Matrix(2, 2).to_rotation(mouse_drag.distance());
+        var rot = new Matrix(2, 2).to_rotation(handle.angle(handle_prev)/2/Math.PI);
         rot = new BigMatrix(space.inside(rot));
 
         if (mouse_drag.move_event.shiftKey) {
