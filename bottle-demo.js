@@ -10,7 +10,7 @@ function klein_bottle_demo(div) {
     var ball_ui = new BallUI(bottle, 3.5);
     bottle.transforms.a = [bottle_pos, ball_ui, bottle_rot];
 
-    var n22d = new N22d(div, [bottle], FourD.Program);
+    var n22d = window.n22d = new N22d(div, [bottle], FourD.Program);
 
     n22d.ondrag(function(mouse_drag) {
         ball_ui.drag(mouse_drag);

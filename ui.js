@@ -9,6 +9,7 @@ var BallUI = Class.create(LazyTransform, {
     drag: function(mouse_drag) {
         var handle_prev = this.grab(mouse_drag.pos_prev);
         var handle = this.grab(mouse_drag.pos);
+        handle_prev.a[0] = handle.a[0] = 0;
 
         var space = new Space([handle_prev, handle]);
         if (space.basis.length != 2)

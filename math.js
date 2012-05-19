@@ -86,18 +86,17 @@ var Matrix = Class.create({
         return this;
     },
 
-    // functionality copied from CanvasMatrix.js
-    // I didn't think through the math myself
+    // actually an opengl perspective transform; puts vertices into clip
+    // coordinates. does not do a perspective transformation
     to_perspective: function(fov, aspect_ratio, z_near, z_far) {
         assert(this.rows == 4);
         assert(this.cols == 4);
         this.to_0();
         var cot = 1/Math.tan(fov/2);
-        // puts scaled [3] onto the point normalization axis
-        this.a[0][3] = -2 * z_near * z_far / (z_far - z_near);
+        this.a[0][3] = -1;
         this.a[1][1] = cot / aspect_ratio;
         this.a[2][2] = cot;
-        this.a[3][0] = -1;
+        this.a[3][0] = 2 * z_near * z_far / (z_far - z_near);
         this.a[3][3] = -(z_far + z_near) / (z_far - z_near);
         return this;
     },
@@ -155,7 +154,7 @@ var Matrix = Class.create({
     plu_decompose: function() {
         var p = new Matrix(this.rows, this.rows).to_I();
         var l = new Matrix(this.rows, this.rows).to_I();
-        var u = new Matrix(this);
+        var u = this.copy();
 
         for (var diag = 0; diag < l.rows; diag++) {
             var max = diag;
@@ -232,7 +231,7 @@ var Matrix = Class.create({
         assert(this.rows == 4);
         assert(this.cols == 4);
         // first row and column become last
-        var a = this.a;
+        var a = this.transpose().a;
         return [a[1][1], a[1][2], a[1][3], a[1][0],
                 a[2][1], a[2][2], a[2][3], a[2][0],
                 a[3][1], a[3][2], a[3][3], a[3][0],
@@ -531,7 +530,7 @@ var Space = Class.create({
 
     add: function(space, tolerance) {
         if (space instanceof Vector)
-            return this.add_vector(space, tolerance);
+            return this.add_vector(space, tolerance); // XXX inconsistent
         else if (space instanceof Array)
             var vectors = space;
         else

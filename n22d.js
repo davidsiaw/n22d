@@ -105,13 +105,14 @@ var Viewport = Class.create({
 
     projection: function() {
         var aspect = this.width / this.height;
-        return new Matrix(4, 4).to_perspective(this.fov, aspect, .1, 30);
+        return new Matrix(4, 4).to_perspective(this.fov, aspect, -.1, -30);
     },
 
     screen2world: function(x, y) {
         x = (2*(x-this.x) - this.width) / this.height;
         y = 1 - 2*(y-this.y)/this.height;
-        return new Vector([0, x, y, -1/Math.tan(this.fov/2)]);
+        var world = this.projection().inverse().times(new Vector([1, x, y, -1]));
+        return world.divide(world.a[0]);
     }
 });
 
