@@ -66,7 +66,6 @@ var N22d = Class.create({
 
         for (var i = 0; i < this.viewports.length; i++) {
             var viewport = this.viewports[i];
-            this.gl.clear(this.gl.DEPTH_BUFFER_BIT);
             this.gl.viewport(viewport.x, viewport.y,
                              viewport.width, viewport.height);
             this.program.set_projection(viewport.projection());
@@ -111,8 +110,10 @@ var Viewport = Class.create({
     screen2world: function(x, y) {
         x = (2*(x-this.x) - this.width) / this.height;
         y = 1 - 2*(y-this.y)/this.height;
-        var world = this.projection().inverse().times(new Vector([1, x, y, -1]));
-        return world.divide(world.a[0]);
+        var diff = this.projection().inverse().times(new Vector([1, x, y, -1]));
+        diff = diff.divide(diff.a[0]);
+        diff.a[0] = 0;
+        return new AffineSpace(new Vector([1]), new Space(diff));
     }
 });
 
@@ -175,7 +176,6 @@ tangent: local tangent Space for lighting. If empty (the default), the Vertex
 */
 var Vertex = Class.create({
     initialize: function(loc, colour, tangent) {
-        assert(!loc || loc.isP());
         this.loc = loc || null;
         this.colour = colour || null;
         this.tangent = tangent || new Space();
@@ -419,6 +419,7 @@ var MouseDrag3D = Class.create({
 
     _mouseup_cb: function(ev) {
         this.dragging = false;
+        this.callback(this);
     },
 
     _mousemove_cb: function(ev) {

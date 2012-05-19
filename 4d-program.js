@@ -5,6 +5,7 @@ var FourD = module(function(mod) {
             'uniform mat4 rotation;',
             'uniform mat4 projection;',
             'uniform vec4 light;',
+            'uniform vec4 click;',
             'uniform float ambient;',
 
             'attribute vec4 vertex;',
@@ -14,9 +15,11 @@ var FourD = module(function(mod) {
 
             'attribute vec4 v_colour;',
             'varying vec4 f_colour;',
+            'varying vec4 f_loc;',
 
             'void main(void) {',
             '    vec4 v = rotation*vertex + translation;',
+            '    f_loc = v;',
             '    gl_Position = projection * vec4(v[0], v[1], v[2] + v[3], 1.);',
 
             '    vec4 t1 = rotation * tangent1;',
@@ -35,10 +38,15 @@ var FourD = module(function(mod) {
             '#ifdef GL_ES',
             'precision highp float;',
             '#endif',
+            'uniform vec4 touch;',
+            'uniform float touch_radius;',
             'varying vec4 f_colour;',
+            'varying vec4 f_loc;',
 
             'void main(void) {',
-            '    gl_FragColor = f_colour;',
+            '    gl_FragColor.rgb = f_colour.rgb;',
+            '    float sigmoid = 1./(1.+exp(8.*(distance(touch, f_loc)-touch_radius)));',
+            '    gl_FragColor.a = f_colour.a + (.8 - f_colour.a)*sigmoid;',
             '}'
         ].join('\n'),
 
@@ -59,6 +67,8 @@ var FourD = module(function(mod) {
             this.rotation = gl.getUniformLocation(prog, "rotation");
             this.projection = gl.getUniformLocation(prog, "projection");
             this.light = gl.getUniformLocation(prog, "light");
+            this.touch = gl.getUniformLocation(prog, "touch");
+            this.touch_radius = gl.getUniformLocation(prog, "touch_radius");
             this.ambient = gl.getUniformLocation(prog, "ambient");
 
             this.vertex = gl.getAttribLocation(prog, "vertex");
@@ -69,6 +79,14 @@ var FourD = module(function(mod) {
             gl.enableVertexAttribArray(this.tangent1);
             gl.enableVertexAttribArray(this.tangent2);
             gl.enableVertexAttribArray(this.v_colour);
+        },
+
+        set_touch: function(touch_loc) {
+            this.gl.uniform4fv(this.touch, touch_loc.copy(5).a.slice(1, 5));
+        },
+
+        set_touch_radius: function(radius) {
+            this.gl.uniform1f(this.touch_radius, radius);
         },
 
         // assumes transform can be decomposed into a translation and a rotation

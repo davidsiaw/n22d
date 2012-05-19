@@ -136,6 +136,16 @@ var Matrix = Class.create({
         return this;
     },
 
+    minus: function(other) {
+        assert(this.rows == other.rows);
+        assert(this.cols == other.cols);
+        var diff = this.copy();
+        for (var i = 0; i < other.rows; i++)
+            for (var j = 0; j < other.cols; j++)
+                diff.a[i][j] -= other.a[i][j];
+        return diff;
+    },
+
     transpose: function() {
         var m = new Matrix(this.cols, this.rows);
         for (var i = 0; i < this.cols; i++)
@@ -150,6 +160,88 @@ var Matrix = Class.create({
         this.a[j] = tmp;
     },
 
+    swap_cols: function(i, j) {
+        for (var row = 0; row < this.rows; row++) {
+            var tmp = this.a[row][i];
+            this.a[row][i] = this.a[row][j];
+            this.a[row][j] = tmp;
+        }
+    },
+
+    solve_vector: function(vector) {
+        // remove redundant rows?
+        var t = this.transpose();
+        var pi = t.times(this.times(t).inverse()); // pseudoinverse
+        var null_space = pi.times(this).minus(new Matrix(pi.rows, pi.rows).to_I()).image().minus(new Space(new Vector([1])));
+        return new AffineSpace(pi.times(vector.copy(pi.cols)), null_space);
+    },
+
+    solve_affine_space: function(space) {
+        var solution = this.solve_vector(space.point);
+        solution.point = solution.point.divide(solution.point.a[0]);
+        space.diff.basis.each(function(d) {
+            d = this.solve_vector(d);
+            d.point.a[0] = 0;
+            solution.diff.add_vector(d.point);
+            solution.diff.add(d.diff);
+        }, this);
+        return solution;
+    },
+
+    affine_orthonormalize: function() {
+        var m = this.image().basis_change();
+        for (var i = 1; i < this.rows; i++)
+            m.a[i][0] = this.a[i][0];
+        return m;
+    },
+
+    image: function() {
+        return new Space(this.a.map(function (row) { return new Vector(row); }));
+    },
+
+    inverse: function() {
+        assert(this.rows == this.cols);
+        return this.inverse_times(new Matrix(this.rows, this.cols).to_I());
+    },
+
+    inverse_test: function() {
+        return this.times(this.inverse());
+    },
+
+    inverse_times: function(other) {
+        assert(this.rows == other.rows);
+        var plu = this.plu_decompose();
+        var p = plu[0];
+        var l = plu[1];
+        var u = plu[2];
+
+        // invert p
+        other = p.transpose().times(other);
+
+        // invert l
+        for (var middle = 0; middle < this.rows; middle++)
+            for (var row = middle+1; row < this.rows; row++)
+                if (l.a[row][middle])
+                    for (var col = 0; col < other.cols; col++)
+                        other.a[row][col] -= l.a[row][middle] * other.a[middle][col];
+
+        // invert u
+        for (var middle = this.rows-1; middle >= 0; middle--) {
+            for (var col = 0; col < other.cols; col++)
+                other.a[middle][col] /= u.a[middle][middle];
+            for (var row = 0; row < middle; row++)
+                if (u.a[row][middle])
+                    for (var col = 0; col < other.cols; col++)
+                        other.a[row][col] -= u.a[row][middle] * other.a[middle][col];
+        }
+
+        return other;
+    },
+
+    inverse_times_test: function(other) {
+        return [other, this.times(this.inverse_times(other))];
+    },
+
     // decompose into [row_permutation, lower_unit_triangular, upper_triangular]
     plu_decompose: function() {
         var p = new Matrix(this.rows, this.rows).to_I();
@@ -162,20 +254,17 @@ var Matrix = Class.create({
                 if (Math.abs(u.a[row][diag]) > Math.abs(u.a[max][diag]))
                     max = row;
             p.swap_rows(diag, max);
-            u.swap_rows(diag, max);
             l.swap_rows(diag, max);
-            l.a[diag][max] = l.a[max][diag] = 0;
-            l.a[diag][diag] = l.a[max][max] = 1;
+            l.swap_cols(diag, max);
+            u.swap_rows(diag, max);
 
             for (var row = diag+1; row < u.rows; row++) {
                 l.a[row][diag] = u.a[row][diag] / u.a[diag][diag];
-                if (isNaN(l.a[row][diag]))
-                    continue;
-                for (var col = diag; col < u.cols; col++)
+                for (var col = 0; col < u.cols; col++)
                     u.a[row][col] -= l.a[row][diag] * u.a[diag][col];
             }
         }
-        return [p, l, u];
+        return [p.transpose(), l, u];
     },
 
     plu_decompose_test: function() {
@@ -184,47 +273,6 @@ var Matrix = Class.create({
         var l = plu[1];
         var u = plu[2];
         return [this, p.times(l).times(u), p, l, u];
-    },
-
-    solve: function(other) {
-        var plu = this.plu_decompose();
-        var p = plu[0];
-        var l = plu[1];
-        var u = plu[2];
-
-        // invert p
-        other = p.transpose().times(other);
-
-        // invert l
-        for (var row = 1; row < this.rows; row++)
-            for (var middle = 0; middle < row; middle++)
-                for (var col = 0; col < this.cols; col++)
-                    other.a[row][col] -= l.a[row][middle] * other.a[middle][col];
-
-        // invert u
-        for (var row = this.rows-1; row >= 0; row--) {
-            for (var middle = row+1; middle < this.cols; middle++)
-                for (var col = 0; col < other.cols; col++)
-                    other.a[row][col] -= u.a[row][middle] * other.a[middle][col];
-
-            for (var col = 0; col < this.cols; col++)
-                other.a[row][col] /= u.a[row][row];
-        }
-
-        return other;
-    },
-
-    solve_test: function(other) {
-        return [other, this.times(this.solve(other))];
-    },
-
-    inverse: function() {
-        assert(this.rows == this.cols);
-        return this.solve(new Matrix(this.rows, this.cols).to_I());
-    },
-
-    inverse_test: function() {
-        return this.times(this.inverse());
     },
 
     as_webgl_array: function() {
@@ -366,6 +414,15 @@ BigMatrix.I_GET_FN = function(row, col) {
     else
         return 1;
 };
+
+BigMatrix.ND_PROJ_GET_FN = function(row, col) {
+    if (row < 3)
+        return row == col ? 1 : 0;
+    else if (row == 3)
+        return col >= 3 ? 1 : 0;
+    else
+        return 0;
+}
 
 // vectors' infiniteness matches whatever you try to operate on
 // them with:
@@ -520,18 +577,19 @@ var Space = Class.create({
 
     // expands if ortho_norm/vector_norm >= tolerance
     add_vector: function(vector, tolerance) {
-        tolerance = tolerance || 1e-14; // figured this out experimentally
+        tolerance = tolerance || 1e-13; // figured this out experimentally
         var ortho = this.ortho_vector(vector);
         var ortho_norm = ortho.norm();
         var vector_norm = vector.norm();
-        if (vector_norm && ortho_norm/vector_norm >= tolerance)
+        if (vector_norm >= tolerance && ortho_norm/vector_norm >= tolerance)
             return this.basis.push(ortho.divide(ortho_norm));
     },
 
     add: function(space, tolerance) {
-        if (space instanceof Vector)
-            return this.add_vector(space, tolerance); // XXX inconsistent
-        else if (space instanceof Array)
+        if (space instanceof Vector) {
+            this.add_vector(space, tolerance);
+            return;
+        } else if (space instanceof Array)
             var vectors = space;
         else
             var vectors = space.basis;
@@ -572,5 +630,12 @@ var Space = Class.create({
         for (var diag = 0; diag < ret.rows; diag++) // add I
             ret.a[diag][diag] += 1;
         return ret;
+    }
+});
+
+var AffineSpace = Class.create({
+    initialize: function(point, diff) {
+        this.point = point;
+        this.diff = diff;
     }
 });

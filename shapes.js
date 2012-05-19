@@ -86,42 +86,46 @@ function icosahedron() {
        [-x, 0, z], [x, 0, z], [-x, 0, -z], [x, 0, -z],
        [0, z, x], [0, z, -x], [0, -z, x], [0, -z, -x],
        [z, x, 0], [-z, x, 0], [z, -x, 0], [-z, -x, 0]
-    ].map(function (v) { return new Vector(v); });
+    ];
 
     return [
        [0,4,1], [0,9,4], [9,5,4], [4,5,8], [4,8,1],    
        [8,10,1], [8,3,10], [5,3,8], [5,2,3], [2,7,3],    
        [7,10,3], [7,6,10], [7,11,6], [11,0,6], [0,1,6], 
        [6,1,10], [9,0,11], [9,11,2], [9,2,5], [7,2,11]
-    ].map(function(vs) { return vs.map(function(i) { return vertices[i]; }); });
+    ].map(function(vs) { return vs.map(function(i) {
+        return new Vertex(new Vector(vertices[i]));
+    }); });
 }
 
-// split a triangle into four along the surface of a sphere
-// center at origin, radius = 1
-function sphere_subdivide(a, b, c) {
-    var d = a.plus(b).normalized();
-    var e = b.plus(c).normalized();
-    var f = a.plus(c).normalized();
-    return [[d, e, f], [a, d, f], [b, d, e], [c, e, f]];
-}
-
-function sphere(n) {
-    var s = icosahedron();
+function sphere_subdivide(sphere, n) {
+    var s = sphere;
     for (var i = 0; i < n; i++) {
-        s = s.map(function (t) { return sphere_subdivide(t[0], t[1], t[2]); });
+        s = s.map(function (t) {
+            var a = t[0], b = t[1], c = t[2];
+            var d = new Vertex(a.loc.plus(b.loc).normalized(), a.colour);
+            var e = new Vertex(b.loc.plus(c.loc).normalized(), b.colour);
+            var f = new Vertex(a.loc.plus(c.loc).normalized(), c.colour);
+            return [[d, e, f], [a, d, f], [b, d, e], [c, e, f]].map(function(t) {
+                return t.map(function(v) {
+                    return v.copy();
+                });
+            });
+        });
         s = [].concat.apply([], s);
     }
+    return s;
+}
 
+function sphere_finish(s) {
     var R3 = new Space([new Vector([1]), new Vector([0,1]), new Vector([0,0,1])]);
-    return s.flatten().map(function(vector) {
-        var v = vector.copy();
-        v.a.unshift(1);
-        v = new Vertex(v);
-        v.tangent = R3.minus(new Space([vector]));
-        assert(v.tangent.basis.length == 2);
+    return s.flatten().map(function(v) {
+        v = v.copy();
+        v.tangent = R3.minus(new Space([v.loc]));
         v.tangent.basis[0].a.unshift(0);
         v.tangent.basis[1].a.unshift(0);
-        v.colour = new Vector([1, 0, 0, .5]);
+        assert(v.tangent.basis.length == 2);
+        v.loc.a.unshift(1);
         return v;
     });
 }
