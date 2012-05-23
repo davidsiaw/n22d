@@ -101,6 +101,16 @@ var Matrix = Class.create({
         return this;
     },
 
+    // dimension combining matrix
+    to_dim_comb: function(nd) {
+        assert(this.rows == 4);
+        assert(this.cols == nd+1);
+        this.to_I();
+        for (var i = 3; i <= nd; i++)
+            this.a[3][i] = 1;
+        return this;
+    },
+
     // change this to the product of two other matrices
     to_times: function(a, b) {
         assert(a.cols == b.rows);
@@ -173,7 +183,7 @@ var Matrix = Class.create({
         var t = this.transpose();
         var pi = t.times(this.times(t).inverse()); // pseudoinverse
         var null_space = pi.times(this).minus(new Matrix(pi.rows, pi.rows).to_I()).image().minus(new Space(new Vector([1])));
-        return new AffineSpace(pi.times(vector.copy(pi.cols)), null_space);
+        return new AffineSpace(pi.times(vector), null_space);
     },
 
     solve_affine_space: function(space) {
@@ -290,12 +300,10 @@ var Matrix = Class.create({
 
 /* A sort of unbounded matrix.
  *  m: Matrix defining the top left corner.
- *  get: function(row, col) defining the area outside of m.
  */
 var BigMatrix = Class.create({
-    initialize: function(matrix, get_fn) {
+    initialize: function(matrix) {
         this.m = matrix || new Matrix(0,0);
-        this.get = get_fn || BigMatrix.I_GET_FN;
     },
 
     to_I: function() {
@@ -333,17 +341,10 @@ var BigMatrix = Class.create({
         return this;
     },
 
-    to_perspective: function(fov, aspect, z_near, z_far) {
-        this.m = new Matrix(4, 4).to_perspective(fov, aspect, z_near, z_far);
-        this.get = BigMatrix.ZERO_GET_FN;
-        return this;
-    },
-
     transpose: function() {
         return new BigMatrix(this.m.transpose());
     },
 
-    // this does the wrong thing for .get()
     times: function(o) {
         if (o instanceof Array)
             return o.map(this.times, this);
@@ -378,6 +379,15 @@ var BigMatrix = Class.create({
         return s;
     },
 
+    get: function(row, col) {
+        if (row < this.m.rows && col < this.m.cols)
+            return this.m.a[row][col];
+        else if (row != col)
+            return 0;
+        else
+            return 1;
+    },
+
     equals: function(o) {
         if (this.get != o.get)
             return false;
@@ -397,32 +407,6 @@ var BigMatrix = Class.create({
         return this;
     }
 });
-
-// possibilities for BigMatrix.get
-BigMatrix.ZERO_GET_FN = function(row, col) {
-    if (row < this.m.rows && col < this.m.cols)
-        return this.m.a[row][col];
-    else
-        return 0;
-};
-
-BigMatrix.I_GET_FN = function(row, col) {
-    if (row < this.m.rows && col < this.m.cols)
-        return this.m.a[row][col];
-    else if (row != col)
-        return 0;
-    else
-        return 1;
-};
-
-BigMatrix.ND_PROJ_GET_FN = function(row, col) {
-    if (row < 3)
-        return row == col ? 1 : 0;
-    else if (row == 3)
-        return col >= 3 ? 1 : 0;
-    else
-        return 0;
-}
 
 // vectors' infiniteness matches whatever you try to operate on
 // them with:

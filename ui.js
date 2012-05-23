@@ -1,35 +1,64 @@
-/* A UI you can spin like a trackball like the one in Google Earth. */
-var BallUI = Class.create(LazyTransform, {
-    initialize: function(model, radius) {
-        this.model = model;
-        this.radius = radius;
-        this.transform = new BigMatrix().to_I();
+// stores state for a mouse drag
+var MouseDrag = Class.create({
+    initialize: function(callback) {
+        this.callback = callback;
+
+        this.dragging = false;
+        this.x_first = this.y_first = null;
+        this.x_prev = this.y_prev = null;
+        this.x = this.y = null;
+        this.move_event = null; // only set during event handling
     },
 
-    drag: function(mouse_drag) {
-        var handle_prev = this.grab(mouse_drag.pos_prev);
-        var handle = this.grab(mouse_drag.pos);
+    bind: function(el) {
+        el.observe('mousedown', this._mousedown_cb.bind(this));
+        el.observe('mouseup', this._mouseup_cb.bind(this));
+        el.observe('mousemove', this._mousemove_cb.bind(this));
+    },
+
+    _mousedown_cb: function(ev) {
+        this.dragging = true;
+        this.x_first = this.x = this.x_prev = ev.offsetX;
+        this.y_first = this.y = this.y_prev = ev.offsetY;
+    },
+
+    _mouseup_cb: function(ev) {
+        this.dragging = false;
+        this.callback(this);
+    },
+
+    _mousemove_cb: function(ev) {
+        if (!this.dragging)
+            return;
+
+        this.x_prev = this.x;
+        this.y_prev = this.y;
+        this.x = ev.offsetX;
+        this.y = ev.offsetY;
+
+        this.move_event = ev;
+        this.callback(this);
+        this.move_event = null; // break reference cycle
+    }
+});
+
+/* A UI you can spin like a trackball, like the one in Google Earth. */
+var BallUI = Class.create({
+    initialize: function(radius) {
+        this.radius = radius;
+        this.transform = new BigMatrix();
+    },
+
+    drag: function(line_prev, line) {
+        var handle_prev = this.closest_point(line_prev);
+        var handle = this.closest_point(line);
         handle_prev.a[0] = handle.a[0] = 0;
         var space = new Space([handle_prev, handle]);
         if (space.basis.length != 2)
             return;
         var rot = new Matrix(2, 2).to_rotation(handle.angle(handle_prev)/2/Math.PI);
         rot = new BigMatrix(space.inside(rot));
-
-        if (mouse_drag.move_event.shiftKey) {
-            var swap = new BigMatrix().to_swap(3, 4);
-            rot = swap.times(rot).times(swap);
-        }
         this.transform.m = this.transform.times(rot).m.affine_orthonormalize();
-    },
-
-    // returns point in model-space
-    grab: function(mouse_line) {
-        var projection = new BigMatrix(null, BigMatrix.ND_PROJ_GET_FN);
-        var transform = projection.times(this.model.transforms.transform).m;
-        var line = transform.solve_affine_space(mouse_line);
-        assert(line.diff.basis.length == 1);
-        return this.closest_point(line);
     },
 
     // returns closest intersection to line.point or another point close to line

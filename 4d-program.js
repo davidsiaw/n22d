@@ -91,6 +91,7 @@ var FourD = module(function(mod) {
 
         // assumes transform can be decomposed into a translation and a rotation
         set_transform: function(transform) {
+            this.transform = transform;
             assert(transform.m.rows <= 5);
             assert(transform.m.cols <= 5);
             assert(transform.m.a[0][0] == 1);
@@ -128,7 +129,7 @@ var FourD = module(function(mod) {
                 this._index_buffers[id] = new IndexBuffer(this.gl);
             }
             this._index_buffers[id].bind();
-            this._index_buffers[id].populate(primitives.indices_by_triangle_depth());
+            this._index_buffers[id].populate_by_depth(this.transform, primitives);
 
             var gl = this.gl;
             gl.drawElements(gl[primitives.type], primitives.vertices.length,
@@ -150,6 +151,27 @@ var FourD = module(function(mod) {
             var gl = this.gl;
             gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices),
                 gl.STREAM_DRAW);
+        },
+
+        populate_by_depth: function(transform, primitives) {
+            var vertices = primitives.vertices;
+            var depth_trans = new BigMatrix(new Matrix(1, 5).to_0());
+            depth_trans.m.a[0][3] = depth_trans.m.a[0][4] = 1;
+            depth_trans = depth_trans.times(transform);
+
+            var triangle_indices = $R(0, vertices.length/3, true);
+            triangle_indices = triangle_indices.sortBy(function (i) {
+                var depth = 0;
+                for (var j = 0; j < 3; j++)
+                    depth += depth_trans.times(vertices[3*i+j].loc).a[0];
+                return depth;
+            }, this);
+ 
+            var vertex_indices = new Array(vertices.length);
+            for (var i = 0; i < triangle_indices.length; i++)
+                for (var j = 0; j < 3; j++)
+                    vertex_indices[3*i+j] = 3*triangle_indices[i]+j;
+            this.populate(vertex_indices);
         }
     });
 

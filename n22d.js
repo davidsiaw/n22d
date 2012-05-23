@@ -5,16 +5,16 @@ N22dError.prototype = Object.extend(new Error, {
 
 /* N-dimensional renderer that uses WebGL.
 div: <div />
-models: [Model, ...]
+primitives: Primitives
 Program: GLProgram constructor (optional; NdProgram by default).
 */
 var N22d = Class.create({
-    initialize: function(div, models, Program) {
+    initialize: function(div, Program) {
         assert(!div.childElements().length);
 
-        this.mouse_drag = null;
         this.viewport = new Viewport();
-        this.models = models;
+        this.primitives = null;
+        this.transform = new BigMatrix();
         this.div = div;
         this.canvas = new Element('canvas');
         this.div.update(this.canvas);
@@ -49,6 +49,16 @@ var N22d = Class.create({
         this.draw_async();
     },
 
+    screen2world: function(x, y, nd) {
+        var v = new Vector([1, 2*x/this.width-1, 1-2*y/this.height, -1]);
+        v = this.viewport.projection().inverse().times(v);
+        v.a[0] = 0; // no need to renormalize because it's the difference space
+        var line = new AffineSpace(new Vector([1,0,0,0]), new Space(v));
+        var dc = new Matrix(4, nd+1).to_dim_comb(nd);
+        var t = dc.times(this.transform._expand(nd+1, nd+1));
+        return t.solve_affine_space(line);
+    },
+
     draw_async: function() {
         return requestAnimFrame(this.draw.bind(this));
     },
@@ -61,19 +71,10 @@ var N22d = Class.create({
         this.gl.viewport(viewport.x, viewport.y,
                          viewport.width, viewport.height);
         this.program.set_projection(viewport.projection());
-        for (var j = 0; j < this.models.length; j++) {
-            var model = this.models[j];
-            model.transforms.evolve(time); // bug: this should be recursive
-            this.program.draw_model(model);
-        }
+        this.program.set_transform(this.transform);
+        this.program.draw_primitives(this.primitives);
 
         this.gl.flush();
-    },
-
-    ondrag: function(callback) {
-        this.mouse_drag = new MouseDrag3D(this.viewport, callback);
-        this.mouse_drag.bind(this.canvas);
-        return this.mouse_drag;
     }
 });
 
@@ -81,30 +82,17 @@ var Viewport = Class.create({
     initialize: function() {
         this.models = [];
         this.fov = Math.PI/4;
-        this.x_frac = this.y_frac = 0;
-        this.width_frac = this.height_frac = 1;
-        this.x = this.y = this.width = this.height = null;
+        this.width = this.height = null;
     },
 
     resize: function(canvas_width, canvas_height) {
-        this.x = this.x_frac * canvas_width;
-        this.y = this.y_frac * canvas_height;
-        this.width = this.width_frac * canvas_width;
-        this.height = this.height_frac * canvas_height;
+        this.width = canvas_width;
+        this.height = canvas_height;
     },
 
     projection: function() {
         var aspect = this.width / this.height;
         return new Matrix(4, 4).to_perspective(this.fov, aspect, -.1, -30);
-    },
-
-    screen2world: function(x, y) {
-        x = (2*(x-this.x) - this.width) / this.height;
-        y = 1 - 2*(y-this.y)/this.height;
-        var diff = this.projection().inverse().times(new Vector([1, x, y, -1]));
-        diff = diff.divide(diff.a[0]);
-        diff.a[0] = 0;
-        return new AffineSpace(new Vector([1]), new Space(diff));
     }
 });
 
@@ -188,17 +176,6 @@ var Vertex = Class.create({
     }
 });
 
-/* A group of Model and/or Primitives objects, possibly nested.
-children: [Model or Primitives, ...]
-transforms: TransformChain
-*/
-var Model = Class.create({
-    initialize: function(children) {
-        this.children = children || [];
-        this.transforms = new TransformChain();
-    }
-});
-
 /* A collection of OpenGL drawing primitives.
 id: string uuid
 type: string 'TRIANGLES', 'LINE_STRIP', etc. from the names of the GL constants
@@ -209,31 +186,6 @@ var Primitives = Class.create({
         this.id = uuid();
         this.type = type;
         this.vertices = vertices || [];
-        this.transforms = new TransformChain();
-    },
-
-    indices_by_triangle_depth: function() {
-        this.transforms.update_transform();
-        transform = this.transforms.transform;
-
-        var depth_trans = new BigMatrix(new Matrix(1, 5).to_0());
-        depth_trans.m.a[0][3] = depth_trans.m.a[0][4] = 1;
-        depth_trans = depth_trans.times(transform);
-
-        var triangle_indices = $R(0, this.vertices.length/3, true);
-        triangle_indices = triangle_indices.sortBy(function (i) {
-            var depth = 0;
-            for (var j = 0; j < 3; j++)
-                depth += depth_trans.times(this.vertices[3*i+j].loc).a[0];
-            return depth;
-        }, this);
-
-        var vertex_indices = new Array(this.vertices.length);
-        for (var i = 0; i < triangle_indices.length; i++)
-            for (var j = 0; j < 3; j++)
-                vertex_indices[3*i+j] = 3*triangle_indices[i]+j;
-
-        return vertex_indices;
     }
 });
 
@@ -245,20 +197,6 @@ var GLProgram = Class.create({
     set_projection: function(proj) { assert(false); },
     draw_primitives: function(primitives) { assert(false); },
 
-    // transform is optional
-    draw_model: function(model, transform) {
-        model.transforms.update_transform();
-        transform = transform || new BigMatrix().to_I();
-        transform = transform.times(model.transforms.transform);
-        if (model.vertices) {
-            this.set_transform(transform);
-            this.draw_primitives(model);
-        } else
-            model.children.each(function(child) {
-                this.draw_model(child, transform);
-            }, this);
-    },
-
     _make_shader: function(type, src) {
         var gl = this.gl;
         var shader = gl.createShader(type);
@@ -267,104 +205,5 @@ var GLProgram = Class.create({
         if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
             throw new ShaderCompileError(gl.getShaderInfoLog(shader));
         return shader;
-    }
-});
-
-// Lazily-computed transform
-var LazyTransform = Class.create({
-    initialize: function(t) {
-        this.transform = t || new BigMatrix().to_I();
-    },
-    evolve: function() {},
-    update_transform: function() {}
-});
-
-var Position = Class.create(LazyTransform, {
-    initialize: function(opt_x) {
-        this.x = opt_x || new Vector([0]);
-        this.v = new Vector([0]); // units per second
-        this.a = new Vector([0]);
-        this.last_evolve = null;
-        this.transform = new BigMatrix();
-        this.update_transform();
-    },
-
-    evolve: function(time) {
-        if (this.last_evolve) {
-            var diff = time - this.last_evolve;
-            this.x = this.x.plus(this.v).plus(this.a.cpt_times(this.a).times(diff/2000));
-            this.v = this.v.plus(this.a.times(diff/1000));
-            this.update_transform();
-        }
-        this.last_evolve = time;
-    },
-
-    update_transform: function() {
-        this.transform.to_translation(this.x);
-    }
-});
-
-var TransformChain = Class.create(LazyTransform, {
-    initialize: function(a) {
-        this.a = a || [];
-        this.transform = new BigMatrix();
-        this.update_transform();
-    },
-
-    evolve: function(time) {
-        for (var i = 0; i < this.a.length; i++)
-            this.a[i].evolve(time);
-        this.update_transform();
-    },
-
-    update_transform: function() {
-        this.transform.to_I();
-        for (var i = 0; i < this.a.length; i++) {
-            this.a[i].update_transform();
-            this.transform = this.transform.times(this.a[i].transform);
-        }
-    }
-});
-
-// stores state for a mouse drag
-var MouseDrag3D = Class.create({
-    initialize: function(viewport, callback) {
-        this.callback = callback;
-        this.viewport = viewport;
-
-        this.dragging = false;
-        this.pos_first = null;
-        this.pos_prev = null;
-        this.pos = null;
-        this.move_event = null; // only set during event handling
-    },
-
-    bind: function(el) {
-        el.observe('mousedown', this._mousedown_cb.bind(this));
-        el.observe('mouseup', this._mouseup_cb.bind(this));
-        el.observe('mousemove', this._mousemove_cb.bind(this));
-    },
-
-    _mousedown_cb: function(ev) {
-        this.dragging = true;
-        var x = ev.offsetX, y = ev.offsetY;
-        this.pos = this.viewport.screen2world(x, y);
-        this.pos_first = this.pos_prev = this.pos;
-    },
-
-    _mouseup_cb: function(ev) {
-        this.dragging = false;
-        this.callback(this);
-    },
-
-    _mousemove_cb: function(ev) {
-        if (!this.dragging)
-            return;
-        this.pos_prev = this.pos;
-        this.pos = this.viewport.screen2world(ev.offsetX, ev.offsetY);
-
-        this.move_event = ev;
-        this.callback(this);
-        this.move_event = null; // break reference cycle
     }
 });
