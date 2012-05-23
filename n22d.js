@@ -205,16 +205,6 @@ var Model = Class.create({
     initialize: function(children) {
         this.children = children || [];
         this.transforms = new TransformChain();
-    },
-
-    each_vertex: function(callback, transform) {
-        this.transforms.update_transform();
-        if (transform)
-            transform = transform.times(this.transforms.transform);
-        else
-            transform = this.transforms.transform;
-        for (var i = 0; i < this.children.length; i++)
-            this.children[i].each_vertex(callback, transform);
     }
 });
 
@@ -229,15 +219,6 @@ var Primitives = Class.create({
         this.type = type;
         this.vertices = vertices || [];
         this.transforms = new TransformChain();
-    },
-
-    each_vertex: function(callback, transform) {
-        this.transforms.update_transform();
-        transform = transform || new BigMatrix.to_I();
-        transform = transform.times(this.transforms.transform);
-        this.vertices.each(function(vertex) {
-            callback(vertex, vertex.times_left(transform));
-        });
     },
 
     indices_by_triangle_depth: function() {
@@ -262,18 +243,6 @@ var Primitives = Class.create({
                 vertex_indices[3*i+j] = 3*triangle_indices[i]+j;
 
         return vertex_indices;
-    }
-});
-
-var Lines = Class.create(Primitives, {
-    initialize: function($super, type, vertices) {
-        $super(type, vertices);
-        this.width = 1;
-    },
-
-    _draw_arrays: function($super, gl) {
-        gl.lineWidth(this.width);
-        $super(gl);
     }
 });
 
@@ -317,31 +286,6 @@ var LazyTransform = Class.create({
     },
     evolve: function() {},
     update_transform: function() {}
-});
-
-var Rotation = Class.create(LazyTransform, {
-    initialize: function(opt_angle, axis_1, axis_2) {
-        this.angle = opt_angle || 0;
-        this.axis_1 = axis_1 || 1;
-        this.axis_2 = axis_2 || 0;
-        this.transform = new BigMatrix();
-        this.update_transform();
-
-        this.velocity = 0; // radians per second
-        this.last_evolve = null;
-    },
-
-    evolve: function(time) {
-        if (this.last_evolve) {
-            this.angle += this.velocity / 1000 * (time - this.last_evolve);
-            this.update_transform();
-        }
-        this.last_evolve = time;
-    },
-
-    update_transform: function() {
-        this.transform.to_rotation(this.angle, this.axis_1, this.axis_2);
-    }
 });
 
 var Position = Class.create(LazyTransform, {
