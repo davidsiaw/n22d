@@ -13,8 +13,8 @@ var N22d = Class.create({
         assert(!div.childElements().length);
 
         this.mouse_drag = null;
-        this.viewports = [new Viewport()];
-        this.viewports[0].models = models;
+        this.viewport = new Viewport();
+        this.models = models;
         this.div = div;
         this.canvas = new Element('canvas');
         this.div.update(this.canvas);
@@ -42,18 +42,11 @@ var N22d = Class.create({
     _resize: function() {
         var size = Math.min(new Element.Layout(this.div).get('width'),
                             document.viewport.getHeight());
-        this.height = this.width = size
-        this.viewports.each(function(viewport) {
-            viewport.resize(size, size);
-        });
+        this.height = this.width = size;
+        this.viewport.resize(size, size);
         this.canvas.width = this.width;
         this.canvas.height = this.height;
         this.draw_async();
-    },
-
-    add_viewport: function(viewport) {
-        this.viewports.push(viewport);
-        this._resize();
     },
 
     draw_async: function() {
@@ -62,25 +55,23 @@ var N22d = Class.create({
 
     draw: function() {
         var time = new Date().getTime(); 
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+        var viewport = this.viewport;
 
-        for (var i = 0; i < this.viewports.length; i++) {
-            var viewport = this.viewports[i];
-            this.gl.viewport(viewport.x, viewport.y,
-                             viewport.width, viewport.height);
-            this.program.set_projection(viewport.projection());
-            for (var j = 0; j < viewport.models.length; j++) {
-                var model = viewport.models[j];
-                model.transforms.evolve(time); // bug: this should be recursive
-                this.program.draw_model(model);
-            }
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+        this.gl.viewport(viewport.x, viewport.y,
+                         viewport.width, viewport.height);
+        this.program.set_projection(viewport.projection());
+        for (var j = 0; j < this.models.length; j++) {
+            var model = this.models[j];
+            model.transforms.evolve(time); // bug: this should be recursive
+            this.program.draw_model(model);
         }
 
         this.gl.flush();
     },
 
     ondrag: function(callback) {
-        this.mouse_drag = new MouseDrag3D(this.viewports[0], callback);
+        this.mouse_drag = new MouseDrag3D(this.viewport, callback);
         this.mouse_drag.bind(this.canvas);
         return this.mouse_drag;
     }
