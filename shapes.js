@@ -11,7 +11,7 @@ function vertex_circle(num_vertices, template, closed) {
 // n_loops: Number of loops of triangles. The model will have small holes
 //          unless n_loops is even.
 // returns <2*n_circle*n_loops> triangles
-function klein_bottle_model(n_circle, n_loops) {
+function klein_bottle(n_circle, n_loops) {
     var loops = new Array(n_loops);
     var trans = new BigMatrix().to_translation(new Vector([0, 0, 2]));
     var torus_rot = new BigMatrix();
@@ -46,7 +46,7 @@ function klein_bottle_model(n_circle, n_loops) {
         circle_prev = circle_i;
     }
 
-    return new Primitives('TRIANGLES', loops.flatten());
+    return loops.flatten();
 }
 
 // make a closed loop of triangles from two offset loops of Vertex's

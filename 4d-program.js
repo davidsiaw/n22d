@@ -50,12 +50,12 @@ var FourD = module(function(mod) {
             '}'
         ].join('\n'),
 
-        initialize: function(gl) {
+        initialize: function(n22d) {
+            this.n22d = n22d;
+            var gl = this.gl = n22d.gl;
+            var prog = this.prog = gl.createProgram();
             this._vertex_buffers = {}; // indexed by model.id
             this._index_buffers = {}; // indexed by model.id
-
-            var prog = this.prog = gl.createProgram();
-            this.gl = gl;
 
             var vertex_shader = this._make_shader(gl.VERTEX_SHADER, this.vertex_shader_src);
             var fragment_shader = this._make_shader(gl.FRAGMENT_SHADER, this.fragment_shader_src);
@@ -79,6 +79,37 @@ var FourD = module(function(mod) {
             gl.enableVertexAttribArray(this.tangent1);
             gl.enableVertexAttribArray(this.tangent2);
             gl.enableVertexAttribArray(this.v_colour);
+
+            gl.enable(this.gl.BLEND);
+            gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+            gl.clearDepth(1.0);
+            gl.clearColor(1, 1, 1, 1);
+        },
+
+        set_viewport: function(viewport) {
+            this.gl.viewport(0, 0, viewport.width, viewport.height);
+            this.gl.uniformMatrix4fv(this.projection, false,
+                    viewport.projection.as_webgl_array());
+        },
+
+        set_transform: function(transform) {
+            assert(transform.m.rows <= 5);
+            assert(transform.m.cols <= 5);
+            assert(transform.m.is_affine());
+            assert(transform.m.a[0][0] == 1);
+            var translation = transform.times(new Vector([1]));
+            var rotation = transform.submatrix(1, 4, 1, 4);
+            this.gl.uniform4fv(this.translation, translation.copy(5).a.slice(1, 5));
+            this.gl.uniformMatrix4fv(this.rotation, false,
+                    rotation.transpose().a.flatten());
+        },
+
+        set_ambient: function(ambient) {
+            this.gl.uniform1f(this.ambient, ambient);
+        },
+
+        set_light: function(light) {
+            this.gl.uniform4fv(this.light, light.copy(5).a.slice(1, 5));
         },
 
         set_touch: function(touch_loc) {
@@ -89,34 +120,21 @@ var FourD = module(function(mod) {
             this.gl.uniform1f(this.touch_radius, radius);
         },
 
-        // assumes transform can be decomposed into a translation and a rotation
-        set_transform: function(transform) {
-            this.transform = transform;
-            assert(transform.m.rows <= 5);
-            assert(transform.m.cols <= 5);
-            assert(transform.m.a[0][0] == 1);
-            for (var i = 1; i < transform.m.cols; i++)
-                assert(transform.m.a[0][i] == 0);
-            var translation = transform.times(new Vector([1]));
-            var rotation = transform.submatrix(1, 4, 1, 4);
-            this.gl.uniform4fv(this.translation, translation.copy(5).a.slice(1, 5));
-            this.gl.uniformMatrix4fv(this.rotation, false,
-                    rotation.transpose().a.flatten());
+        set_draw_parms: function(p) {
+            this.set_viewport(p.viewport);
+            this.set_transform(p.transform);
+            this.set_ambient(p.ambient);
+            this.set_light(p.light);
+            this.set_touch(p.touch);
+            this.set_touch_radius(p.touch_radius);
         },
 
-        set_projection: function(proj) {
-            this.gl.uniformMatrix4fv(this.projection, false, proj.as_webgl_array())
-        },
+        draw: function() {
+            var gl = this.gl;
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            this.set_draw_parms(this.n22d);
 
-        set_light: function(light) {
-            this.gl.uniform4fv(this.light, light.copy(5).a.slice(1, 5));
-        },
-
-        set_ambient: function(ambient) {
-            this.gl.uniform1f(this.ambient, ambient);
-        },
-
-        draw_primitives: function(primitives) {
+            var primitives = n22d.primitives;
             var id = primitives.id;
             if (id in this._vertex_buffers)
                 this._vertex_buffers[id].bind(this);
@@ -129,11 +147,11 @@ var FourD = module(function(mod) {
                 this._index_buffers[id] = new IndexBuffer(this.gl);
             }
             this._index_buffers[id].bind();
-            this._index_buffers[id].populate_by_depth(this.transform, primitives);
+            this._index_buffers[id].populate_by_depth(this.n22d.transform, primitives);
 
-            var gl = this.gl;
             gl.drawElements(gl[primitives.type], primitives.vertices.length,
                     gl.UNSIGNED_SHORT, 0);
+            gl.flush();
         }
     });
 
@@ -157,13 +175,13 @@ var FourD = module(function(mod) {
             var vertices = primitives.vertices;
             var depth_trans = new BigMatrix(new Matrix(1, 5).to_0());
             depth_trans.m.a[0][3] = depth_trans.m.a[0][4] = 1;
-            depth_trans = depth_trans.times(transform);
+            depth_trans = new Vector(depth_trans.times(transform).m.a[0]);
 
             var triangle_indices = $R(0, vertices.length/3, true);
             triangle_indices = triangle_indices.sortBy(function (i) {
                 var depth = 0;
                 for (var j = 0; j < 3; j++)
-                    depth += depth_trans.times(vertices[3*i+j].loc).a[0];
+                    depth += depth_trans.dot(vertices[3*i+j].loc);
                 return depth;
             }, this);
  

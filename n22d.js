@@ -1,9 +1,4 @@
-var N22dError = Class.create();
-N22dError.prototype = Object.extend(new Error, {
-    initialize: function(msg) { this.message = msg; }
-});
-
-/* N-dimensional renderer that uses WebGL.
+/* Widget for N-dimensional renderer that uses WebGL.
 div: <div />
 primitives: Primitives
 Program: GLProgram constructor (optional; NdProgram by default).
@@ -11,10 +6,6 @@ Program: GLProgram constructor (optional; NdProgram by default).
 var N22d = Class.create({
     initialize: function(div, Program) {
         assert(!div.childElements().length);
-
-        this.viewport = new Viewport();
-        this.primitives = null;
-        this.transform = new BigMatrix();
         this.div = div;
         this.canvas = new Element('canvas');
         this.div.update(this.canvas);
@@ -23,36 +14,34 @@ var N22d = Class.create({
         if (!this.gl)
             return;
 
-        this.gl.enable(this.gl.BLEND);
-        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
-        this.gl.clearDepth(1.0);
-        this.gl.clearColor(1, 1, 1, 1);
-        this._set_program(new (Program || NdProgram)(this.gl));
+        this.viewport = new Viewport(this.canvas);
+        this.primitives = null;
+        this.transform = new BigMatrix();
+        this.ambient = .3;
+        this.light = new Vector([1]);
+        this.touch_radius = .5;
+        this.touch = new Vector([]);
+
+        this._set_program(new (Program || NdProgram)(this));
         this._resize();
     },
 
     _set_program: function(program) {
-        this.gl.useProgram(program.prog);
-        program.set_light(new Vector([1]));
-        program.set_ambient(.3);
+        program.use();
         this.program = program;
-        this.draw_async();
     },
 
     _resize: function() {
         var size = Math.min(new Element.Layout(this.div).get('width'),
                             document.viewport.getHeight());
-        this.height = this.width = size;
-        this.viewport.resize(size, size);
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
+        this.canvas.width = this.canvas.height = size;
+        this.viewport.resize();
         this.draw_async();
     },
 
-    screen2world: function(x, y, nd) {
-        var v = new Vector([1, 2*x/this.width-1, 1-2*y/this.height, -1]);
-        v = this.viewport.projection().inverse().times(v);
-        v.a[0] = 0; // no need to renormalize because it's the difference space
+    screen2model: function(x, y, nd) {
+        var v = this.viewport.screen2clip(x, y);
+        v.a[0] = 0; // no need to renormalize because it's a direction
         var line = new AffineSpace(new Vector([1,0,0,0]), new Space(v));
         var dc = new Matrix(4, nd+1).to_dim_comb(nd);
         var t = dc.times(this.transform._expand(nd+1, nd+1));
@@ -60,39 +49,32 @@ var N22d = Class.create({
     },
 
     draw_async: function() {
-        return requestAnimFrame(this.draw.bind(this));
-    },
-
-    draw: function() {
-        var time = new Date().getTime(); 
-        var viewport = this.viewport;
-
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-        this.gl.viewport(viewport.x, viewport.y,
-                         viewport.width, viewport.height);
-        this.program.set_projection(viewport.projection());
-        this.program.set_transform(this.transform);
-        this.program.draw_primitives(this.primitives);
-
-        this.gl.flush();
+        return requestAnimFrame(this.program.draw.bind(this.program));
     }
 });
 
+var N22dError = Class.create();
+N22dError.prototype = Object.extend(new Error, {
+    initialize: function(msg) { this.message = msg; }
+});
+
 var Viewport = Class.create({
-    initialize: function() {
-        this.models = [];
+    initialize: function(canvas) {
+        this.canvas = canvas;
         this.fov = Math.PI/4;
-        this.width = this.height = null;
+        this.resize();
     },
 
-    resize: function(canvas_width, canvas_height) {
-        this.width = canvas_width;
-        this.height = canvas_height;
-    },
-
-    projection: function() {
+    resize: function() {
+        this.width = this.canvas.width;
+        this.height = this.canvas.height;
         var aspect = this.width / this.height;
-        return new Matrix(4, 4).to_perspective(this.fov, aspect, -.1, -30);
+        this.projection = new Matrix(4, 4).to_perspective(this.fov, aspect, -.1, -30);
+    },
+
+    screen2clip: function(x, y) {
+        var v = new Vector([1, 2*x/this.width-1, 1-2*y/this.height, -1]);
+        return this.projection.inverse().times(v);
     }
 });
 
@@ -191,11 +173,8 @@ var Primitives = Class.create({
 
 var ShaderCompileError = Class.create(N22dError);
 var GLProgram = Class.create({
-    set_light: function(light) {},
-    set_ambient: function(ambient) {},
-    set_transform: function(transform) { assert(false); },
-    set_projection: function(proj) { assert(false); },
-    draw_primitives: function(primitives) { assert(false); },
+    draw: function() { assert(false); },
+    use: function() { this.gl.useProgram(this.prog); },
 
     _make_shader: function(type, src) {
         var gl = this.gl;

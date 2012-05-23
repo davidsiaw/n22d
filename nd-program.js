@@ -1,6 +1,7 @@
 var NdProgram = Class.create(GLProgram, {
-    initialize: function(gl) {
-        this.gl = gl;
+    initialize: function(n22d) {
+        this.n22d = n22d;
+        var gl = this.gl = n22d.gl;
         this.data = null;
         this.buffer = gl.createBuffer();
 
@@ -35,20 +36,27 @@ var NdProgram = Class.create(GLProgram, {
         this.colour = gl.getAttribLocation(this.prog, "v_colour");
         gl.enableVertexAttribArray(this.pos);
         gl.enableVertexAttribArray(this.colour);
+
+        gl.enable(this.gl.BLEND);
+        gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+        gl.clearDepth(1.0);
+        gl.clearColor(1, 1, 1, 1);
     },
 
-    set_ambient: function(ambient) { this.ambient = ambient; },
-    set_light: function(light) { this.light = light; },
-    set_transform: function(transform) { this.transform = transform; },
-    set_projection: function(proj) {
-        this.gl.uniformMatrix4fv(this.projection, false, proj.as_webgl_array());
+    set_viewport: function(viewport) {
+        this.gl.viewport(0, 0, viewport.width, viewport.height);
+        this.gl.uniformMatrix4fv(this.projection, false,
+                viewport.projection.as_webgl_array());
     },
 
-    draw_primitives: function(primitives) {
+    draw: function() {
         // this doesn't order triangles properly for alpha blending
         var gl = this.gl;
-        assert(this.transform);
-        assert(this.light);
+        var primitives = this.n22d.primitives;
+        var transform = this.n22d.transform;
+        var light = this.n22d.light;
+        var ambient = this.n22d.ambient;
+        this.set_viewport(this.n22d.viewport);
 
         var stride = 7;
         var vertices = primitives.vertices;
@@ -58,8 +66,8 @@ var NdProgram = Class.create(GLProgram, {
 
         var i = 0;
         for (var j = 0; j < vertices.length; j++) {
-            var loc = this.transform.times(vertices[j].loc);
-            var tangent = this.transform.times(vertices[j].tangent);
+            var loc = transform.times(vertices[j].loc);
+            var tangent = transform.times(vertices[j].tangent);
             var colour = vertices[j].colour;
 
             this.data[i++] = loc.a[1];
@@ -69,9 +77,9 @@ var NdProgram = Class.create(GLProgram, {
                 this.data[i] += loc.a[k];
             i++;
 
-            var light_vector = loc.point_minus(this.light).normalized();
+            var light_vector = loc.point_minus(light).normalized();
             var diffuse = tangent.ortho_vector(light_vector).norm();
-            var illum = this.ambient + (1-this.ambient)*Math.pow(diffuse, .75);
+            var illum = this.ambient + (1-ambient)*Math.pow(diffuse, .75);
             for (var l = 0; l < 3; l++)
                 this.data[i++] = illum * colour.a[l];
             this.data[i++] = colour.a[3];
