@@ -40,12 +40,28 @@ var N22d = Class.create({
     },
 
     screen2model: function(x, y, nd) {
-        var v = this.viewport.screen2clip(x, y);
-        v.a[0] = 0; // no need to renormalize because it's a direction
-        var line = new AffineSpace(new Vector([1,0,0,0]), new Space(v));
-        var dc = new Matrix(4, nd+1).to_dim_comb(nd);
-        var t = dc.times(this.transform._expand(nd+1, nd+1));
-        return t.solve_affine_space(line);
+        nd = Math.max(nd, this.transform.m.cols)
+        var world = this.viewport.screen2world(x, y, nd);
+        return this.transform.inverse().times(world);
+    },
+
+    // Vector you can dot with things to compute their depths (z on the screen)
+    z_functional: function(nd) {
+        nd = Math.max(nd, this.transform.m.cols)
+        var d = new BigMatrix(new Matrix(1, nd).to_0());
+        for (var i = 3; i < nd; i++)
+            d.m.a[0][i] = 1;
+        return new Vector(d.times(this.transform).m.a[0]);
+    },
+
+    max_z: function(points) {
+        var nd = points.max(function(p) { return p.a.length; });
+        var z = this.z_functional(nd);
+        var p = points[0];
+        for (var i = 1; i < points.length; i++)
+            if (points[i].dot(z) > p.dot(z))
+                p = points[i];
+        return p;
     },
 
     draw_async: function() {
@@ -72,9 +88,12 @@ var Viewport = Class.create({
         this.projection = new Matrix(4, 4).to_perspective(this.fov, aspect, -.1, -30);
     },
 
-    screen2clip: function(x, y) {
-        var v = new Vector([1, 2*x/this.width-1, 1-2*y/this.height, -1]);
-        return this.projection.inverse().times(v);
+    screen2world: function(x, y, nd) {
+        var screen = new Vector([1, 2*x/this.width-1, 1-2*y/this.height, -1]);
+        var diff_3d = this.projection.inverse().times(screen);
+        diff_3d.a[0] = 0;
+        var diff_nd = new Matrix(4, nd).to_dim_comb().solve_affine(diff_3d);
+        return new AffineSpace(new Vector([1]).copy(nd), diff_nd);
     }
 });
 

@@ -122,10 +122,6 @@ function sphere_finish(s) {
     return s.flatten().map(function(v) {
         v = v.copy();
         v.tangent = R3.minus(new Space([v.loc]));
-        v.tangent.basis[0].a.unshift(0);
-        v.tangent.basis[1].a.unshift(0);
-        assert(v.tangent.basis.length == 2);
-        v.loc.a.unshift(1);
         return v;
     });
 }

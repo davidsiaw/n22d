@@ -102,11 +102,10 @@ var Matrix = Class.create({
     },
 
     // dimension combining matrix
-    to_dim_comb: function(nd) {
+    to_dim_comb: function() {
         assert(this.rows == 4);
-        assert(this.cols == nd+1);
         this.to_I();
-        for (var i = 3; i <= nd; i++)
+        for (var i = 3; i < this.cols; i++)
             this.a[3][i] = 1;
         return this;
     },
@@ -134,6 +133,8 @@ var Matrix = Class.create({
             var result = new other.constructor(this.rows, other.cols);
         } else if (other instanceof Space) {
             return new other.constructor(this.times(other.basis));
+        } else if (other instanceof AffineSpace) {
+            return new other.constructor(this.times(other.point), this.times(other.diff));
         } else
             assert(false);
         return result.to_times(this, other);
@@ -179,34 +180,45 @@ var Matrix = Class.create({
     },
 
     solve_vector: function(vector) {
-        // remove redundant rows?
-        var t = this.transpose();
-        var pi = t.times(this.times(t).inverse()); // pseudoinverse
-        var null_space = pi.times(this).minus(new Matrix(pi.rows, pi.rows).to_I()).image().minus(new Space(new Vector([1])));
+        var pi = this.pseudoinverse();
+        var I = new Matrix(pi.rows, this.cols).to_I();
+        var null_space = pi.times(this).minus(I).image();
         return new AffineSpace(pi.times(vector), null_space);
     },
 
-    solve_affine_space: function(space) {
-        var solution = this.solve_vector(space.point);
-        solution.point = solution.point.divide(solution.point.a[0]);
-        space.diff.basis.each(function(d) {
-            d = this.solve_vector(d);
-            d.point.a[0] = 0;
-            solution.diff.add_vector(d.point);
-            solution.diff.add(d.diff);
-        }, this);
-        return solution;
-    },
-
-    affine_orthonormalize: function() {
-        var m = this.image().basis_change();
-        for (var i = 1; i < this.rows; i++)
-            m.a[i][0] = this.a[i][0];
-        return m;
+    // affine-aware version of solve. distinguishes between points and
+    // vectors according to .isP() and .isV()
+    solve_affine: function(space) {
+        if (space instanceof AffineSpace) {
+            var solution = this.solve_vector(space.point);
+            solution.diff.add(this.solve_affine(space.diff));
+            return solution;
+        } else if (space instanceof Space) {
+            var solution = new Space();
+            for (var i = 0; i < space.basis.length; i++) {
+                assert(space.basis[i].isV());
+                solution.add(this.solve_affine(space.basis[i]));
+            }
+            return solution;
+        } else if (space.isP())
+            return this.solve_vector(space);
+        else {
+            var solution = this.solve_vector(space);
+            solution.diff.add(solution.point);
+            return solution.diff;
+        }
     },
 
     image: function() {
         return new Space(this.a.map(function (row) { return new Vector(row); }));
+    },
+
+    pseudoinverse: function() {
+        var t = this.transpose();
+        if (this.rows <= this.cols)
+            return t.times(this.times(t).inverse());
+        else
+            return t.times(this).inverse().times(t);
     },
 
     inverse: function() {
@@ -352,6 +364,11 @@ var BigMatrix = Class.create({
         return new BigMatrix(this.m.transpose());
     },
 
+    inverse: function() {
+        var size = Math.max(this.m.rows, this.m.cols);
+        return new BigMatrix(this._expand(size, size).inverse());
+    },
+
     times: function(o) {
         if (o instanceof Array)
             return o.map(this.times, this);
@@ -366,9 +383,11 @@ var BigMatrix = Class.create({
             var a = this._expand(rows, middle);
             var b = o.copy(middle);
             return a.times(b);
-        } else if (o instanceof Space) {
+        } else if (o instanceof Space)
             return new Space(this.times(o.basis));
-        } else
+        else if (o instanceof AffineSpace)
+            return new AffineSpace(this.times(o.point), this.times(o.diff));
+        else
             assert(false);
     },
 
@@ -415,13 +434,43 @@ var BigMatrix = Class.create({
     }
 });
 
+// easy to invert with high precision
+var AffineUnitaryBigMatrix = Class.create(BigMatrix, {
+    initialize: function($super, m) {
+        $super(m);
+        assert(this.m.is_affine());
+    },
+
+    inverse: function() {
+        assert(this.m.is_affine());
+        var size = Math.max(this.m.rows, this.m.cols);
+        var m = this._expand(size, size).transpose();
+        var v = new Vector(m.a[0]).copy();
+        for (var i = 1; i < m.cols; i++)
+            m.a[0][i] = 0;
+        v = m.times(v);
+        for (var i = 1; i < m.rows; i++)
+            m.a[i][0] = -v.a[i];
+        return new AffineUnitaryBigMatrix(m);
+    },
+
+    times: function($super, o) {
+        if (o instanceof AffineUnitaryBigMatrix) {
+            var size = Math.max(this.m.rows, this.m.cols, o.m.rows, o.m.cols);
+            var a = this._expand(size, size);
+            var b = o._expand(size, size);
+            return new AffineUnitaryBigMatrix(a.times(b));
+        } else
+            return $super(o);
+    }
+});
+
 // vectors' infiniteness matches whatever you try to operate on
 // them with:
 //    - finite when you multiply them by finite matrices and 
 //    - infinite (expanding) when you combine them with BigMatrix's and
 //      other Vectors, in which case they are treated as having 0 components
 //      outside the explicitly defined area.
-// a=[0, ...] is a vector, anything else is a point
 var Vector = Class.create({
     initialize: function(a) {
         this.a = a;
@@ -445,6 +494,15 @@ var Vector = Class.create({
 
     normalized: function() {
         return this.divide(this.norm());
+    },
+
+    affine_normalized: function() {
+        assert(this.isP());
+        var a = 1/this.a[0];
+        a /= a*this.a[0]; // try hard to get a good inverse of a[0]
+        var v = this.times(a);
+        v.a[0] = 1;
+        return v;
     },
 
     plus: function(other) {
@@ -548,6 +606,7 @@ var Vector = Class.create({
 // vector space
 var Space = Class.create({
     initialize: function(vs) {
+        this.nd = 0; // max number of coordinates in basis vectors
         this.basis = [];
         if (vs)
             this.add(vs);
@@ -568,12 +627,16 @@ var Space = Class.create({
 
     // expands if ortho_norm/vector_norm >= tolerance
     add_vector: function(vector, tolerance) {
-        tolerance = tolerance || 1e-13; // figured this out experimentally
+        if (vector instanceof Array)
+            vector = new Vector(vector);
+        tolerance = tolerance || 1e-6; // XXX awful
         var ortho = this.ortho_vector(vector);
         var ortho_norm = ortho.norm();
         var vector_norm = vector.norm();
-        if (vector_norm >= tolerance && ortho_norm/vector_norm >= tolerance)
-            return this.basis.push(ortho.divide(ortho_norm));
+        if (vector_norm >= tolerance && ortho_norm/vector_norm >= tolerance) {
+            this.basis.push(ortho.divide(ortho_norm));
+            this.nd = Math.max(this.nd, ortho.a.length);
+        }
     },
 
     add: function(space, tolerance) {
@@ -582,6 +645,8 @@ var Space = Class.create({
             return;
         } else if (space instanceof Array)
             var vectors = space;
+        else if (space instanceof AffineSpace)
+            var vectors = space.diff.basis.concat([space.point]);
         else
             var vectors = space.basis;
 
@@ -591,6 +656,13 @@ var Space = Class.create({
         return this;
     },
 
+    plus: function(space, tolerance) {
+        var sum = this.copy();
+        sum.add(space, tolerance);
+        return sum;
+    },
+
+    // subspace of this orthogonal to space
     minus: function(space) {
         var diff = new Space();
         for (var i = 0; i < this.basis.length; i++)
@@ -598,13 +670,18 @@ var Space = Class.create({
         return diff;
     },
 
-    basis_change: function() {
-        var cols = this.basis.max(function(v) { return v.a.length; });
+    basis_change: function(min_size) {
+        var cols = Math.max(this.nd, min_size||0);
         var m = new Matrix(this.basis.length, cols).to_0();
         for (var i = 0; i < this.basis.length; i++)
             for (var j = 0; j < this.basis[i].a.length; j++)
                 m.a[i][j] = this.basis[i].a[j];
         return m;
+    },
+
+    projection: function(min_size) {
+        var b = this.basis_change(min_size);
+        return b.transpose().times(b);
     },
 
     /* Do an operation as if it were inside this space.
@@ -621,12 +698,47 @@ var Space = Class.create({
         for (var diag = 0; diag < ret.rows; diag++) // add I
             ret.a[diag][diag] += 1;
         return ret;
+    },
+
+    intersection: function(space) {
+        var size = Math.max(this.nd, space.nd);
+        var proj = this.projection(size).times(space.projection(size));
+        var I = new Matrix(size, size).to_I();
+        var i = I.image().minus(proj.minus(I).image());
+        assert(i.basis.length <= this.basis.length);
+        assert(i.basis.length <= space.basis.length);
+        return i;
     }
 });
 
 var AffineSpace = Class.create({
+    // point and difference space
     initialize: function(point, diff) {
         this.point = point;
-        this.diff = diff;
+        this.diff = new Space(diff);
+    },
+
+    intersection: function(other) {
+        var a = new Space(this);
+        var b = new Space(other);
+        var ab = a.intersection(b);
+        var affine = new AffineSpace(null, []);
+        for (var i = 0; i < ab.basis.length; i++) {
+            var v = ab.basis[i];
+            if (v.isP()) {
+                if (affine.point)
+                    affine.diff.add(v.point_minus(affine.point.times(v.a[0])));
+                else
+                    affine.point = v.affine_normalized();
+            } else
+                affine.diff.add(v);
+        }
+        return affine;
+    },
+
+    closest_to: function(point) {
+        var a = this.diff.basis_change().transpose();
+        var pi = a.pseudoinverse();
+        return a.times(pi).times(point.minus(this.point)).plus(this.point);
     }
 });

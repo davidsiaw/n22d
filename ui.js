@@ -44,49 +44,59 @@ var MouseDrag = Class.create({
 
 /* A UI you can spin like a trackball, like the one in Google Earth. */
 var BallUI = Class.create({
-    initialize: function(radius) {
+    initialize: function(n22d, radius, space, colour) {
+        this.n22d = n22d;
         this.radius = radius;
-        this.transform = new BigMatrix();
+        this.space = space;
+        this.colour = colour;
     },
 
-    drag: function(line_prev, line) {
-        var handle_prev = this.closest_point(line_prev);
-        var handle = this.closest_point(line);
-        handle_prev.a[0] = handle.a[0] = 0;
-        var space = new Space([handle_prev, handle]);
-        if (space.basis.length != 2)
-            return;
-        var rot = new Matrix(2, 2).to_rotation(handle.angle(handle_prev)/2/Math.PI);
-        rot = new BigMatrix(space.inside(rot));
-        this.transform.m = this.transform.times(rot).m.affine_orthonormalize();
-    },
+    model: function() {
+        var colour = this.colour;
+        var ball = sphere_subdivide(icosahedron(), 1).each(function (t) {
+            t[0].colour = t[1].colour = t[2].colour = colour.copy();
+            t[0].colour.a[3] = Math.random()/6 + .2;
+        });
+        ball = sphere_finish(sphere_subdivide(ball, 2));
 
-    // returns closest intersection to line.point or another point close to line
-    closest_point: function(line) {
-        var p = line.point;
-        var d = line.diff.basis[0];
         var r = this.radius;
-        var x2 = d.a[1]*d.a[1] + d.a[2]*d.a[2] + d.a[3]*d.a[3];
-        var x1 = 2*d.a[1]*p.a[1] + 2*d.a[2]*p.a[2] + 2*d.a[3]*p.a[3];
-        var x0 = p.a[1]*p.a[1] + p.a[2]*p.a[2] + p.a[3]*p.a[3] - r*r;
-        var s = solve_quadratic(x2, x1, x0);
-        if (s.length)
-            return p.plus(d.times(s.min()));
-        else {
-            // doesn't normalize to be on the sphere
-            var center = new Vector([1]); // center of this sphere
-            var pc = center.point_minus(p);
-            return p.plus(d.times(pc.dot(pc)/d.dot(pc)));
+        var scale = new BigMatrix().to_scale([r, r, r]);
+        var move = this.space.diff.basis_change().transpose();
+        return ball.map(function(v) {
+            v.loc = scale.times(v.loc);
+            v = v.times_left(move);
+            v.loc = v.loc.plus(this.space.point);
+            return v;
+        }, this);
+    },
+
+    drag: function(mouse_drag) {
+        var handle_prev = this.grab(mouse_drag.x_prev, mouse_drag.y_prev);
+        var handle = this.grab(mouse_drag.x, mouse_drag.y);
+        handle_prev = handle_prev.minus(this.space.point);
+        handle = handle.minus(this.space.point);
+        var angle = handle.angle(handle_prev);
+        if (!angle)
+            return;
+        var rot = new Matrix(2, 2).to_rotation(angle/2/Math.PI);
+        var rot_space = new Space([handle_prev, handle]);
+        return new AffineUnitaryBigMatrix(rot_space.inside(rot));
+    },
+
+    grab: function(x, y) {
+        var grab_space = this.n22d.screen2model(x, y, this.space.diff.nd);
+        var local = this.space.intersection(grab_space);
+        var closest = local.closest_to(this.space.point);
+        var norm = closest.minus(this.space.point).norm();
+        if (norm > this.radius) {
+            var d = closest.minus(this.space.point);
+            return this.space.point.plus(d.times(this.radius/norm));
         }
+        var adjacent = Math.sqrt(this.radius*this.radius-norm*norm);
+        assert(local.diff.basis.length == 1);
+        var d = local.diff.basis[0].times(adjacent);
+        var handle = this.n22d.max_z([closest.plus(d), closest.minus(d)]);
+        this.n22d.touch = this.n22d.transform.times(handle); // XXX ugly
+        return handle;
     }
 });
-
-function solve_quadratic(a, b, c) {
-    var desc = Math.sqrt(b*b - 4*a*c);
-    if (isNaN(desc))
-        return [];
-    else if (desc == 0)
-        return [-b/a/2];
-    else
-        return [(desc - b)/a/2, (-desc - b)/a/2];
-}

@@ -147,7 +147,7 @@ var FourD = module(function(mod) {
                 this._index_buffers[id] = new IndexBuffer(this.gl);
             }
             this._index_buffers[id].bind();
-            this._index_buffers[id].populate_by_depth(this.n22d.transform, primitives);
+            this._index_buffers[id].populate_by_depth(this.n22d.z_functional(5), primitives);
 
             gl.drawElements(gl[primitives.type], primitives.vertices.length,
                     gl.UNSIGNED_SHORT, 0);
@@ -173,15 +173,11 @@ var FourD = module(function(mod) {
 
         populate_by_depth: function(transform, primitives) {
             var vertices = primitives.vertices;
-            var depth_trans = new BigMatrix(new Matrix(1, 5).to_0());
-            depth_trans.m.a[0][3] = depth_trans.m.a[0][4] = 1;
-            depth_trans = new Vector(depth_trans.times(transform).m.a[0]);
-
             var triangle_indices = $R(0, vertices.length/3, true);
             triangle_indices = triangle_indices.sortBy(function (i) {
                 var depth = 0;
                 for (var j = 0; j < 3; j++)
-                    depth += depth_trans.dot(vertices[3*i+j].loc);
+                    depth += transform.dot(vertices[3*i+j].loc);
                 return depth;
             }, this);
  
