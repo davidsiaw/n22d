@@ -70,11 +70,9 @@ var BallUI = Class.create({
         }, this);
     },
 
-    drag: function(mouse_drag) {
-        var handle_prev = this.grab(mouse_drag.x_prev, mouse_drag.y_prev);
-        var handle = this.grab(mouse_drag.x, mouse_drag.y);
-        handle_prev = handle_prev.minus(this.space.point);
+    drag: function(handle, handle_prev) {
         handle = handle.minus(this.space.point);
+        handle_prev = handle_prev.minus(this.space.point);
         var angle = handle.angle(handle_prev);
         if (!angle)
             return;
@@ -95,8 +93,6 @@ var BallUI = Class.create({
         var adjacent = Math.sqrt(this.radius*this.radius-norm*norm);
         assert(local.diff.basis.length == 1);
         var d = local.diff.basis[0].times(adjacent);
-        var handle = this.n22d.max_z([closest.plus(d), closest.minus(d)]);
-        this.n22d.touch = this.n22d.transform.times(handle); // XXX ugly
-        return handle;
+        return this.n22d.max_z([closest.plus(d), closest.minus(d)]);
     }
 });

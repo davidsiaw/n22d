@@ -1,25 +1,26 @@
 /* Widget for N-dimensional renderer that uses WebGL. */
 var N22d = Class.create({
-    initialize: function() {
+    initialize: function(vertices) {
         this.dom = new Element('div');
         this.dom.observe('DOMNodeInserted', this.resize.bind(this));
         this.dom.observe('resize', this.resize.bind(this));
         this.canvas = new Element('canvas');
         this.dom.update(this.canvas);
-        this.gl = WebGLDebugUtils.makeDebugContext(
-            WebGLUtils.setupWebGL(this.canvas));
+        this.gl = this._make_gl({alpha: true});
         if (!this.gl)
             return;
 
-        this.viewport = new Viewport(this.canvas);
-        this.primitives = null;
-        this.transform = new BigMatrix();
+        // writable:
+        this.transform = new AffineUnitaryBigMatrix();
         this.light = new Vector([1]);
-        this.ambient = .3
-        this.init_gl();
+        this.ambient = .3;
+
+        this._viewport = new Viewport(this.canvas);
+
+        this._initialize();
     },
 
-    init_gl: function() {
+    _initialize: function() {
         var gl = this.gl;
         this.data = null;
         this.buffer = gl.createBuffer();
@@ -110,14 +111,15 @@ var N22d = Class.create({
     resize: function() {
         var size = Math.min(new Element.Layout(this.dom).get('width'),
                             document.viewport.getHeight());
+        size = 512; // XXX
         this.canvas.width = this.canvas.height = size;
-        this.viewport.resize();
+        this._viewport.resize();
         this.draw_async();
     },
 
     screen2model: function(x, y, nd) {
         nd = Math.max(nd, this.transform.m.cols)
-        var world = this.viewport.screen2world(x, y, nd);
+        var world = this._viewport.screen2world(x, y, nd);
         return this.transform.inverse().times(world);
     },
 
@@ -144,27 +146,25 @@ var N22d = Class.create({
         return requestAnimFrame(this.draw.bind(this));
     },
 
-    _make_shader: function(type, src) {
-        var gl = this.gl;
-        var shader = gl.createShader(type);
-        gl.shaderSource(shader, src);
-        gl.compileShader(shader);
-        if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
-            throw new ShaderCompileError(gl.getShaderInfoLog(shader));
-        return shader;
+    _make_gl: function(parms) {
+        return WebGLDebugUtils.makeDebugContext(
+           WebGLUtils.setupWebGL(this.canvas),
+           function(err, func, args) {
+               var error = new GLError(WebGLDebugUtils.glEnumToString(err));
+               error.func = func;
+               error.args = [];
+               for (var i = 0; i < args.length; i++) {
+                   var arg = args[i];
+                   if (arg === null) // bug in thing
+                       arg = 'null';
+                   else
+                       arg = WebGLDebugUtils.glFunctionArgToString(func, i, arg)
+                   error.args.push(arg);
+               }
+               throw error;
+           });
     },
 
-    _make_program: function(vertex_shader_src, fragment_shader_src) {
-        var gl = this.gl;
-        var vs = this._make_shader(gl.VERTEX_SHADER, vertex_shader_src);
-        var fs = this._make_shader(gl.FRAGMENT_SHADER, fragment_shader_src);
-
-        var prog = gl.createProgram();
-        gl.attachShader(prog, vs);
-        gl.attachShader(prog, fs);
-        gl.linkProgram(prog);
-        return prog;
-    }
 });
 
 var N22dError = Class.create();
@@ -172,6 +172,7 @@ N22dError.prototype = Object.extend(new Error, {
     initialize: function(msg) { this.message = msg; }
 });
 var ShaderCompileError = Class.create(N22dError);
+var GLError = Class.create(N22dError);
 
 var Viewport = Class.create({
     initialize: function(canvas) {
@@ -184,7 +185,7 @@ var Viewport = Class.create({
         this.width = this.canvas.width;
         this.height = this.canvas.height;
         var aspect = this.width / this.height;
-        this.projection = new Matrix(4, 4).to_perspective(this.fov, aspect, -.1, -30);
+        this.projection = new Matrix(4, 4).to_perspective(this.fov, aspect, -4, -15);
     },
 
     screen2world: function(x, y, nd) {
@@ -273,17 +274,5 @@ var Vertex = Class.create({
         v.loc = m.times(v.loc);
         v.tangent = m.times(v.tangent);
         return v;
-    }
-});
-
-/* A collection of OpenGL drawing primitives.
-id: string uuid
-type: string 'TRIANGLES', 'LINE_STRIP', etc. from the names of the GL constants
-vertices: [Vertex, ...]
-*/
-var Primitives = Class.create({
-    initialize: function(type, vertices) {
-        this.type = type;
-        this.vertices = vertices || [];
     }
 });
