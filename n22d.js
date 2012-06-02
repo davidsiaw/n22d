@@ -1,14 +1,11 @@
-/* Widget for N-dimensional renderer that uses WebGL.
-div: <div />
-primitives: Primitives
-Program: GLProgram constructor (optional; NdProgram by default).
-*/
+/* Widget for N-dimensional renderer that uses WebGL. */
 var N22d = Class.create({
-    initialize: function(div, Program) {
-        assert(!div.childElements().length);
-        this.div = div;
+    initialize: function() {
+        this.dom = new Element('div');
+        this.dom.observe('DOMNodeInserted', this.resize.bind(this));
+        this.dom.observe('resize', this.resize.bind(this));
         this.canvas = new Element('canvas');
-        this.div.update(this.canvas);
+        this.dom.update(this.canvas);
         this.gl = WebGLDebugUtils.makeDebugContext(
             WebGLUtils.setupWebGL(this.canvas));
         if (!this.gl)
@@ -17,22 +14,101 @@ var N22d = Class.create({
         this.viewport = new Viewport(this.canvas);
         this.primitives = null;
         this.transform = new BigMatrix();
-        this.ambient = .3;
         this.light = new Vector([1]);
-        this.touch_radius = .5;
-        this.touch = new Vector([]);
-
-        this._set_program(new (Program || NdProgram)(this));
-        this._resize();
+        this.ambient = .3
+        this.init_gl();
     },
 
-    _set_program: function(program) {
-        program.use();
-        this.program = program;
+    init_gl: function() {
+        var gl = this.gl;
+        this.data = null;
+        this.buffer = gl.createBuffer();
+        this.prog = this._make_program(this.vertex_shader_src, this.fragment_shader_src);
+        gl.useProgram(this.prog);
+        this.projection = gl.getUniformLocation(this.prog, "projection");
+        this.vertex = gl.getAttribLocation(this.prog, "vertex");
+        this.colour = gl.getAttribLocation(this.prog, "v_colour");
+        gl.enableVertexAttribArray(this.pos);
+        gl.enableVertexAttribArray(this.colour);
+
+        gl.enable(this.gl.BLEND);
+        gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+        gl.clearDepth(1.0);
+        gl.clearColor(1, 1, 1, 1);
     },
 
-    _resize: function() {
-        var size = Math.min(new Element.Layout(this.div).get('width'),
+    vertex_shader_src: [
+        'uniform mat4 projection;',
+        'attribute vec3 vertex;',
+        'attribute vec4 v_colour;',
+        'varying vec4 f_colour;',
+        'void main(void) {',
+        '    gl_Position = projection * vec4(vertex, 1.);',
+        '    f_colour = v_colour;',
+        '}'
+    ].join('\n'),
+
+    fragment_shader_src: [
+        '#ifdef GL_ES',
+        'precision highp float;',
+        '#endif',
+        'varying vec4 f_colour;',
+
+        'void main(void) {',
+        '    gl_FragColor = f_colour;',
+        '}'
+    ].join('\n'),
+
+    set_viewport: function(viewport) {
+        this.gl.viewport(0, 0, viewport.width, viewport.height);
+        this.gl.uniformMatrix4fv(this.projection, false,
+                viewport.projection.as_webgl_array());
+    },
+
+    draw: function() {
+        var gl = this.gl;
+        var primitives = this.primitives;
+        var transform = this.transform;
+        var light = this.light;
+        var ambient = this.ambient;
+        this.set_viewport(this.viewport);
+
+        var stride = 7;
+        var vertices = primitives.vertices;
+        var length = stride * primitives.vertices.length;
+        if (!this.data || this.data.length != length)
+            this.data = new Float32Array(length);
+
+        var i = 0;
+        for (var j = 0; j < vertices.length; j++) {
+            var loc = transform.times(vertices[j].loc);
+            var tangent = transform.times(vertices[j].tangent);
+            var colour = vertices[j].colour;
+
+            this.data[i++] = loc.a[1];
+            this.data[i++] = loc.a[2];
+            this.data[i] = 0;
+            for (var k = 3; k < loc.a.length; k++)
+                this.data[i] += loc.a[k];
+            i++;
+
+            var light_vector = loc.point_minus(light).normalized();
+            var diffuse = tangent.ortho_vector(light_vector).norm();
+            var illum = this.ambient + (1-ambient)*Math.pow(diffuse, .75);
+            for (var l = 0; l < 3; l++)
+                this.data[i++] = illum * colour.a[l];
+            this.data[i++] = colour.a[3];
+        }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.vertexAttribPointer(this.vertex, 3, gl.FLOAT, false, stride*4, 0);
+        gl.vertexAttribPointer(this.colour, 4, gl.FLOAT, false, stride*4, 3*4);
+        gl.bufferData(gl.ARRAY_BUFFER, this.data, gl.STREAM_DRAW);
+        gl.drawArrays(gl[primitives.type], 0, vertices.length);
+    },
+
+    resize: function() {
+        var size = Math.min(new Element.Layout(this.dom).get('width'),
                             document.viewport.getHeight());
         this.canvas.width = this.canvas.height = size;
         this.viewport.resize();
@@ -65,7 +141,29 @@ var N22d = Class.create({
     },
 
     draw_async: function() {
-        return requestAnimFrame(this.program.draw.bind(this.program));
+        return requestAnimFrame(this.draw.bind(this));
+    },
+
+    _make_shader: function(type, src) {
+        var gl = this.gl;
+        var shader = gl.createShader(type);
+        gl.shaderSource(shader, src);
+        gl.compileShader(shader);
+        if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
+            throw new ShaderCompileError(gl.getShaderInfoLog(shader));
+        return shader;
+    },
+
+    _make_program: function(vertex_shader_src, fragment_shader_src) {
+        var gl = this.gl;
+        var vs = this._make_shader(gl.VERTEX_SHADER, vertex_shader_src);
+        var fs = this._make_shader(gl.FRAGMENT_SHADER, fragment_shader_src);
+
+        var prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+        return prog;
     }
 });
 
@@ -73,6 +171,7 @@ var N22dError = Class.create();
 N22dError.prototype = Object.extend(new Error, {
     initialize: function(msg) { this.message = msg; }
 });
+var ShaderCompileError = Class.create(N22dError);
 
 var Viewport = Class.create({
     initialize: function(canvas) {
@@ -184,24 +283,7 @@ vertices: [Vertex, ...]
 */
 var Primitives = Class.create({
     initialize: function(type, vertices) {
-        this.id = uuid();
         this.type = type;
         this.vertices = vertices || [];
-    }
-});
-
-var ShaderCompileError = Class.create(N22dError);
-var GLProgram = Class.create({
-    draw: function() { assert(false); },
-    use: function() { this.gl.useProgram(this.prog); },
-
-    _make_shader: function(type, src) {
-        var gl = this.gl;
-        var shader = gl.createShader(type);
-        gl.shaderSource(shader, src);
-        gl.compileShader(shader);
-        if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
-            throw new ShaderCompileError(gl.getShaderInfoLog(shader));
-        return shader;
     }
 });

@@ -1,5 +1,5 @@
-function klein_bottle_demo(div) {
-    var n22d = window.n22d = new N22d(div, FourD.Program);
+function klein_bottle_demo() {
+    var n22d = window.n22d = new FourD.Four22d();
     var origin = new Vector([1]);
     var s3 = new AffineSpace(origin, [[0,1], [0,0,1], [0,0,0,1]]);
     var s4 = new AffineSpace(origin, [[0,1], [0,0,1], [0,0,0,0,1]]);
@@ -10,10 +10,10 @@ function klein_bottle_demo(div) {
         return v.times_left(r);
     });
     vertices = vertices.concat(ball3.model(), ball4.model());
+    n22d.populate(vertices);
 
     n22d.primitives = new Primitives('TRIANGLES', vertices);
     n22d.transform = new AffineUnitaryBigMatrix().to_translation(new Vector([0, 0, 0, -9.5]));
-    n22d.program.populate(vertices);
 
     var drag = new MouseDrag(function(mouse_drag) {
         if (mouse_drag.dragging) {
@@ -27,5 +27,5 @@ function klein_bottle_demo(div) {
         n22d.draw_async();
     });
     drag.bind(n22d.canvas);
-    n22d.draw_async();
+    return n22d;
 }

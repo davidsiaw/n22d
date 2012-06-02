@@ -1,5 +1,28 @@
 var FourD = module(function(mod) {
-    mod.Program = Class.create(GLProgram, {
+    mod.Four22d = Class.create(N22d, {
+        init_gl: function() {
+            this.touch = new Vector([]);
+            this.touch_radius = .5;
+
+            var gl = this.gl;
+            var prog = this.prog = this._make_program(this.vertex_shader_src, this.fragment_shader_src);
+            gl.useProgram(prog);
+
+            this.vertex_buffer = new VertexBuffer(gl, prog);
+            this.translation = gl.getUniformLocation(prog, "translation");
+            this.rotation = gl.getUniformLocation(prog, "rotation");
+            this.projection = gl.getUniformLocation(prog, "projection");
+            this.light_loc = gl.getUniformLocation(prog, "light");
+            this.touch_loc = gl.getUniformLocation(prog, "touch");
+            this.touch_radius_loc = gl.getUniformLocation(prog, "touch_radius");
+            this.ambient_loc = gl.getUniformLocation(prog, "ambient_loc");
+
+            gl.enable(this.gl.BLEND);
+            gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+            gl.clearDepth(1.0);
+            gl.clearColor(1, 1, 1, 1);
+        },
+
         vertex_shader_src: [
             'uniform vec4 translation;',
             'uniform mat4 rotation;',
@@ -50,47 +73,6 @@ var FourD = module(function(mod) {
             '}'
         ].join('\n'),
 
-        initialize: function(n22d) {
-            this.n22d = n22d;
-            var gl = this.gl = n22d.gl;
-            var prog = this.prog = gl.createProgram();
-            this.vertex_buffer = new VertexBuffer(this.gl);
-
-            var vertex_shader = this._make_shader(gl.VERTEX_SHADER, this.vertex_shader_src);
-            var fragment_shader = this._make_shader(gl.FRAGMENT_SHADER, this.fragment_shader_src);
-            gl.attachShader(prog, vertex_shader);
-            gl.attachShader(prog, fragment_shader);
-            gl.linkProgram(prog);
-
-            this.translation = gl.getUniformLocation(prog, "translation");
-            this.rotation = gl.getUniformLocation(prog, "rotation");
-            this.projection = gl.getUniformLocation(prog, "projection");
-            this.light = gl.getUniformLocation(prog, "light");
-            this.touch = gl.getUniformLocation(prog, "touch");
-            this.touch_radius = gl.getUniformLocation(prog, "touch_radius");
-            this.ambient = gl.getUniformLocation(prog, "ambient");
-
-            this.vertex = gl.getAttribLocation(prog, "vertex");
-            this.tangent1 = gl.getAttribLocation(prog, "tangent1");
-            this.tangent2 = gl.getAttribLocation(prog, "tangent2");
-            this.v_colour = gl.getAttribLocation(prog, "v_colour");
-            gl.enableVertexAttribArray(this.vertex);
-            gl.enableVertexAttribArray(this.tangent1);
-            gl.enableVertexAttribArray(this.tangent2);
-            gl.enableVertexAttribArray(this.v_colour);
-
-            gl.enable(this.gl.BLEND);
-            gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
-            gl.clearDepth(1.0);
-            gl.clearColor(1, 1, 1, 1);
-        },
-
-        set_viewport: function(viewport) {
-            this.gl.viewport(0, 0, viewport.width, viewport.height);
-            this.gl.uniformMatrix4fv(this.projection, false,
-                    viewport.projection.as_webgl_array());
-        },
-
         set_transform: function(transform) {
             assert(transform.m.rows <= 5);
             assert(transform.m.cols <= 5);
@@ -103,29 +85,14 @@ var FourD = module(function(mod) {
                     rotation.transpose().a.flatten());
         },
 
-        set_ambient: function(ambient) {
-            this.gl.uniform1f(this.ambient, ambient);
-        },
-
-        set_light: function(light) {
-            this.gl.uniform4fv(this.light, light.copy(5).a.slice(1, 5));
-        },
-
-        set_touch: function(touch_loc) {
-            this.gl.uniform4fv(this.touch, touch_loc.copy(5).a.slice(1, 5));
-        },
-
-        set_touch_radius: function(radius) {
-            this.gl.uniform1f(this.touch_radius, radius);
-        },
-
-        set_draw_parms: function(p) {
-            this.set_viewport(p.viewport);
-            this.set_transform(p.transform);
-            this.set_ambient(p.ambient);
-            this.set_light(p.light);
-            this.set_touch(p.touch);
-            this.set_touch_radius(p.touch_radius);
+        set_draw_parms: function() {
+            var gl = this.gl;
+            this.set_viewport(this.viewport);
+            this.set_transform(this.transform);
+            gl.uniform1f(this.ambienet_loc, this.ambient);
+            gl.uniform4fv(this.light_loc, this.light.copy(5).a.slice(1, 5));
+            gl.uniform4fv(this.touch_loc, this.touch.copy(5).a.slice(1, 5));
+            gl.uniform1f(this.touch_radius_loc, this.touch_radius);
         },
 
         populate: function(vertices) {
@@ -136,28 +103,37 @@ var FourD = module(function(mod) {
         draw: function() {
             var gl = this.gl;
             gl.clear(gl.COLOR_BUFFER_BIT);
-            this.set_draw_parms(this.n22d);
+            this.set_draw_parms();
             this.vertex_buffer.bind(this);
-            var primitives = this.n22d.primitives;
+            var primitives = this.primitives;
             gl.drawArrays(gl[primitives.type], 0, primitives.vertices.length);
             gl.flush();
         }
     });
 
     var VertexBuffer = Class.create({
-        initialize: function(gl) {
+        initialize: function(gl, prog) {
             this.gl = gl;
             this.buffer = this.gl.createBuffer();
+
+            this.vertex = gl.getAttribLocation(prog, "vertex");
+            this.tangent1 = gl.getAttribLocation(prog, "tangent1");
+            this.tangent2 = gl.getAttribLocation(prog, "tangent2");
+            this.v_colour = gl.getAttribLocation(prog, "v_colour");
+            gl.enableVertexAttribArray(this.vertex);
+            gl.enableVertexAttribArray(this.tangent1);
+            gl.enableVertexAttribArray(this.tangent2);
+            gl.enableVertexAttribArray(this.v_colour);
         },
 
-        bind: function(prog) {
+        bind: function() {
             var stride = 16;
             var gl = this.gl;
             gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-            gl.vertexAttribPointer(prog.vertex, 4, gl.FLOAT, false, stride*4, 0);
-            gl.vertexAttribPointer(prog.tangent1, 4, gl.FLOAT, false, stride*4, 4*4);
-            gl.vertexAttribPointer(prog.tangent2, 4, gl.FLOAT, false, stride*4, 8*4);
-            gl.vertexAttribPointer(prog.v_colour, 4, gl.FLOAT, false, stride*4, 12*4);
+            gl.vertexAttribPointer(this.vertex, 4, gl.FLOAT, false, stride*4, 0);
+            gl.vertexAttribPointer(this.tangent1, 4, gl.FLOAT, false, stride*4, 4*4);
+            gl.vertexAttribPointer(this.tangent2, 4, gl.FLOAT, false, stride*4, 8*4);
+            gl.vertexAttribPointer(this.v_colour, 4, gl.FLOAT, false, stride*4, 12*4);
         },
 
         /* Buffer a vertices into the current gl.ARRAY_BUFFER
