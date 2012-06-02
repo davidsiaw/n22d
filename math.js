@@ -484,7 +484,7 @@ var Vector = Class.create({
     },
 
     angle: function(v) {
-        return Math.acos(this.dot(v) / this.norm() / v.norm());
+        return Math.acos(this.dot(v) / this.norm() / v.norm())/2/Math.PI;
     },
 
     // l2 norm

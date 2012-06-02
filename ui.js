@@ -78,7 +78,7 @@ var BallUI = Class.create({
         var angle = handle.angle(handle_prev);
         if (!angle)
             return;
-        var rot = new Matrix(2, 2).to_rotation(angle/2/Math.PI);
+        var rot = new Matrix(2, 2).to_rotation(angle);
         var rot_space = new Space([handle_prev, handle]);
         return new AffineUnitaryBigMatrix(rot_space.inside(rot));
     },
