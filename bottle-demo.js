@@ -13,6 +13,7 @@ function klein_bottle_demo(div) {
 
     n22d.primitives = new Primitives('TRIANGLES', vertices);
     n22d.transform = new AffineUnitaryBigMatrix().to_translation(new Vector([0, 0, 0, -9.5]));
+    n22d.program.populate(vertices);
 
     var drag = new MouseDrag(function(mouse_drag) {
         if (mouse_drag.dragging) {

@@ -54,8 +54,7 @@ var FourD = module(function(mod) {
             this.n22d = n22d;
             var gl = this.gl = n22d.gl;
             var prog = this.prog = gl.createProgram();
-            this._vertex_buffers = {}; // indexed by model.id
-            this._index_buffers = {}; // indexed by model.id
+            this.vertex_buffer = new VertexBuffer(this.gl);
 
             var vertex_shader = this._make_shader(gl.VERTEX_SHADER, this.vertex_shader_src);
             var fragment_shader = this._make_shader(gl.FRAGMENT_SHADER, this.fragment_shader_src);
@@ -129,63 +128,19 @@ var FourD = module(function(mod) {
             this.set_touch_radius(p.touch_radius);
         },
 
+        populate: function(vertices) {
+            this.vertex_buffer.bind(this);
+            this.vertex_buffer.populate(vertices);
+        },
+
         draw: function() {
             var gl = this.gl;
             gl.clear(gl.COLOR_BUFFER_BIT);
             this.set_draw_parms(this.n22d);
-
-            var primitives = n22d.primitives;
-            var id = primitives.id;
-            if (id in this._vertex_buffers)
-                this._vertex_buffers[id].bind(this);
-            else {
-                var vb =  new VertexBuffer(this.gl);
-                vb.bind(this);
-                vb.populate(primitives);
-                this._vertex_buffers[id] = vb;
-
-                this._index_buffers[id] = new IndexBuffer(this.gl);
-            }
-            this._index_buffers[id].bind();
-            this._index_buffers[id].populate_by_depth(this.n22d.z_functional(5), primitives);
-
-            gl.drawElements(gl[primitives.type], primitives.vertices.length,
-                    gl.UNSIGNED_SHORT, 0);
+            this.vertex_buffer.bind(this);
+            var primitives = this.n22d.primitives;
+            gl.drawArrays(gl[primitives.type], 0, primitives.vertices.length);
             gl.flush();
-        }
-    });
-
-    var IndexBuffer = Class.create({
-        initialize: function(gl) {
-            this.gl = gl;
-            this.buffer = this.gl.createBuffer();
-        },
-
-        bind: function() {
-            this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffer);
-        },
-
-        populate: function(indices) {
-            var gl = this.gl;
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices),
-                gl.STREAM_DRAW);
-        },
-
-        populate_by_depth: function(transform, primitives) {
-            var vertices = primitives.vertices;
-            var triangle_indices = $R(0, vertices.length/3, true);
-            triangle_indices = triangle_indices.sortBy(function (i) {
-                var depth = 0;
-                for (var j = 0; j < 3; j++)
-                    depth += transform.dot(vertices[3*i+j].loc);
-                return depth;
-            }, this);
- 
-            var vertex_indices = new Array(vertices.length);
-            for (var i = 0; i < triangle_indices.length; i++)
-                for (var j = 0; j < 3; j++)
-                    vertex_indices[3*i+j] = 3*triangle_indices[i]+j;
-            this.populate(vertex_indices);
         }
     });
 
@@ -205,12 +160,11 @@ var FourD = module(function(mod) {
             gl.vertexAttribPointer(prog.v_colour, 4, gl.FLOAT, false, stride*4, 12*4);
         },
 
-        /* Buffer a Primitives into the current gl.ARRAY_BUFFER
-         * primitives: Primitives
+        /* Buffer a vertices into the current gl.ARRAY_BUFFER
+         * vertices: [Vertex, ...]
          */
-        populate: function(primitives) {
+        populate: function(vertices) {
             var stride = 16;
-            var vertices = primitives.vertices;
             var data = new Float32Array(stride * vertices.length);
             for (var i = 0; i < vertices.length; i++) {
                 var v = vertices[i];
