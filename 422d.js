@@ -188,8 +188,7 @@ var FourD = module(function(mod) {
                 gl.disable(gl.BLEND);
 
             gl.blendFunc(gl.ONE_MINUS_DST_ALPHA, gl.ONE);
-            gl.disable(gl.DEPTH_TEST); // XXX
-            gl.depthFunc(gl.GREATER);
+            gl.disable(gl.DEPTH_TEST);
 
             v._dst_framebuffer.bind();
             gl.drawArrays(gl.TRIANGLES, 0, v._vertices.length);
