@@ -1,0 +1,64 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html lang='en'>
+<head>
+<title>Spin a Klein Bottle</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link href="style.css" rel="stylesheet" type="text/css">
+
+<script src="prototype.js"></script>
+<script src="n22d/webgl-utils.js"></script>
+<script src="n22d/webgl-debug.js"></script>
+
+<script src="n22d/util.js"></script>
+<script src="n22d/math.js"></script>
+<script src="n22d/gl.js"></script>
+<script src="n22d/n22d.js"></script>
+<script src="n22d/422d.js"></script>
+<script src="n22d/ui.js"></script>
+<script src="n22d/shapes.js"></script>
+<script src="n22d/bottle-demo.js"></script>
+
+<script type="text/javascript">
+    document.observe("dom:loaded", function() {
+        $$('body')[0].insert(klein_bottle_demo().dom);
+    });
+</script>
+
+<style type="text/css">
+    body {
+        margin-left: auto;
+        margin-right: auto;
+        max-width:30em;
+        font-family: Georgia, "Times New Roman", Times, serif;
+        text-align: justify;
+        font-size:large;
+    }
+    a {
+        text-decoration:none;
+    }
+    .logo {
+        display:block;
+        font-size:x-large;
+        color:#808080;
+        text-indent:2em;
+        text-decoration:none;
+    }
+    .title {
+        display:block;
+        font-size:xx-large;
+        text-indent:0.5em;
+    }
+    .error {
+        font-size:xx-large;
+        color:#FF0000;
+        margin:1em;
+    }
+</style>
+</head>
+
+<body>
+    <a class="logo" href="http://tenfour.ag">tenfour</a>
+    <div class="title">Spin a Klein Bottle</div>
+</body>
+
+</html>
