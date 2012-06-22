@@ -18,7 +18,7 @@ function klein_bottle(n_circle, n_loops, colour) {
     var mobius_rot = new BigMatrix();
     var offset_rot = new BigMatrix();
 
-    var template = new Vertex(new Vector([1, 1, 0]), colour);
+    var template = new FourD.Vertex(new Vector([1, 1, 0]), colour);
     template.tangent.add([new Vector([0, 0, 1]), new Vector([0, 0, 0, 1])]);
     var circle_0 = vertex_circle(n_circle, template); // original circle
     var circle_prev = circle_0.map(function(v) { // previous circle
@@ -93,7 +93,7 @@ function icosahedron() {
        [7,10,3], [7,6,10], [7,11,6], [11,0,6], [0,1,6], 
        [6,1,10], [9,0,11], [9,11,2], [9,2,5], [7,2,11]
     ].map(function(vs) { return vs.map(function(i) {
-        return new Vertex(new Vector(vertices[i]));
+        return new FourD.Vertex(new Vector(vertices[i]));
     }); });
 }
 
@@ -102,9 +102,9 @@ function sphere_subdivide(sphere, n) {
     for (var i = 0; i < n; i++) {
         s = s.map(function (t) {
             var a = t[0], b = t[1], c = t[2];
-            var d = new Vertex(a.loc.plus(b.loc).normalized(), a.colour);
-            var e = new Vertex(b.loc.plus(c.loc).normalized(), b.colour);
-            var f = new Vertex(a.loc.plus(c.loc).normalized(), c.colour);
+            var d = new FourD.Vertex(a.loc.plus(b.loc).normalized(), a.colour);
+            var e = new FourD.Vertex(b.loc.plus(c.loc).normalized(), b.colour);
+            var f = new FourD.Vertex(a.loc.plus(c.loc).normalized(), c.colour);
             return [[d, e, f], [a, d, f], [b, d, e], [c, e, f]].map(function(t) {
                 return t.map(function(v) {
                     return v.copy();

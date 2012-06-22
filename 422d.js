@@ -1,10 +1,21 @@
 var FourD = module(function(mod) {
-    mod.Four22d = Class.create(N22d, {
-        _initialize: function() {
+    mod.Four22d = Class.create({
+        initialize: function() {
             // writable:
+            this.transform = new AffineUnitaryBigMatrix();
+            this.light = new Vector([1]);
+            this.ambient = .3;
             this.touch = new Vector([]);
             this.touch_radius = .5;
-            this.model = null;
+
+            this.dom = new Element('div');
+            this.dom.observe('DOMNodeInserted', this.resize.bind(this));
+            this.dom.observe('resize', this.resize.bind(this));
+            this.canvas = new Element('canvas');
+            this.dom.update(this.canvas);
+            this.gl = this._make_gl({alpha: true});
+            if (!this.gl)
+                return;
 
             var gl = this.gl;
             assert(gl.getExtension('OES_texture_float'));
@@ -15,11 +26,13 @@ var FourD = module(function(mod) {
             this._depth_textures = [newTexture(gl), newTexture(gl)];
 
             // vertex attributes
+            this._vertices = null;
             this._coords = newStaticFloat32Buffer(gl, 4);
             this._tangent1s = newStaticFloat32Buffer(gl, 4);
             this._tangent2s = newStaticFloat32Buffer(gl, 4);
             this._colours = newStaticFloat32Buffer(gl, 4);
 
+            this._viewport = new mod.Viewport(this.canvas);
             this._dst_framebuffer = new NullFramebuffer(gl);
             this._aux_framebuffer = newFramebuffer(gl);
             this._aux_framebuffer.attach_depth(newRenderbuffer(gl));
@@ -47,21 +60,31 @@ var FourD = module(function(mod) {
             this._vertices = vertices;
         },
 
-        resize: function($super) {
-            $super();
+        resize: function() {
             var gl = this.gl;
-            var w = this._viewport.width, h = this._viewport.height;
-            gl.viewport(0, 0, w, h);
+            var s = Math.min(new Element.Layout(this.dom).get('width'),
+                                document.viewport.getHeight());
+            s = 512; // XXX
+            this.canvas.width = this.canvas.height = s;
+            this._viewport.resize();
+
+            gl.viewport(0, 0, s, s);
 
             this._aux_framebuffer.depth.bind();
-            gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+            gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, s, s);
 
             for (var i = 0; i < this._depth_textures.length; i++) {
                 this._depth_textures[i].bind();
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.FLOAT, null);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, s, s, 0, gl.RGBA, gl.FLOAT, null);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
             }
+
+            this.draw_async();
+        },
+
+        draw_async: function() {
+            return requestAnimFrame(this.draw.bind(this));
         },
 
         draw: function() {
@@ -88,6 +111,102 @@ var FourD = module(function(mod) {
             gl.clearColor(0, 1, 1, 1);
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.finish();
+        },
+
+        screen2model: function(x, y, nd) {
+            nd = Math.max(nd, this.transform.m.cols)
+            var world = this._viewport.screen2world(x, y, nd);
+            return this.transform.inverse().times(world);
+        },
+
+        // Vector you can dot with things to compute their depths (z on the screen)
+        z_functional: function(nd) {
+            nd = Math.max(nd, this.transform.m.cols)
+            var d = new BigMatrix(new Matrix(1, nd).to_0());
+            for (var i = 3; i < nd; i++)
+                d.m.a[0][i] = 1;
+            return new Vector(d.times(this.transform).m.a[0]);
+        },
+
+        max_z: function(points) {
+            var nd = points.max(function(p) { return p.a.length; });
+            var z = this.z_functional(nd);
+            var p = points[0];
+            for (var i = 1; i < points.length; i++)
+                if (points[i].dot(z) > p.dot(z))
+                    p = points[i];
+            return p;
+        },
+
+        _make_gl: function(parms) {
+            return WebGLDebugUtils.makeDebugContext(
+               WebGLUtils.setupWebGL(this.canvas),
+               function(err, func, args) {
+                   var error = new Error(WebGLDebugUtils.glEnumToString(err));
+                   error.func = func;
+                   error.args = [];
+                   for (var i = 0; i < args.length; i++) {
+                       var arg = args[i];
+                       if (arg === null) // bug in thing
+                           arg = 'null';
+                       else
+                           arg = WebGLDebugUtils.glFunctionArgToString(func, i, arg)
+                       error.args.push(arg);
+                   }
+                   throw error;
+               });
+        }
+    });
+
+    mod.Viewport = Class.create({
+        initialize: function(canvas) {
+            this.canvas = canvas;
+            this.fov = Math.PI/4;
+            this.resize();
+        },
+
+        resize: function() {
+            this.width = this.canvas.width;
+            this.height = this.canvas.height;
+            var aspect = this.width / this.height;
+            this.projection = new Matrix(4, 4).to_perspective(this.fov, aspect, -4, -15);
+        },
+
+        screen2world: function(x, y, nd) {
+            var screen = new Vector([1, 2*x/this.width-1, 1-2*y/this.height, -1]);
+            var diff_3d = this.projection.inverse().times(screen);
+            diff_3d.a[0] = 0;
+            var diff_nd = new Matrix(4, nd).to_dim_comb().solve_affine(diff_3d);
+            return new AffineSpace(new Vector([1]).copy(nd), diff_nd);
+        }
+    });
+
+    /* A vertex of a model; encapsulates all per-vertex input to a vertex shader.
+    loc: Vector, a point in affine space -- coordinate [0] must be nonzero.
+    colour: RGBA Vector
+    tangent: local tangent Space for lighting. If empty (the default), the Vertex
+        will be coloured as if it is fully lit.
+    */
+    mod.Vertex = Class.create({
+        initialize: function(loc, colour, tangent) {
+            this.loc = loc || null;
+            this.colour = colour || null;
+            this.tangent = tangent || new Space();
+        },
+
+        copy: function() {
+            var v = new mod.Vertex();
+            v.loc = copy(this.loc);
+            v.colour = copy(this.colour);
+            v.tangent = copy(this.tangent);
+            return v;
+        },
+
+        times_left: function(m) {
+            var v = this.copy();
+            v.loc = m.times(v.loc);
+            v.tangent = m.times(v.tangent);
+            return v;
         }
     });
 

@@ -159,7 +159,7 @@ var Program = Class.create({
         gl.shaderSource(shader, src);
         gl.compileShader(shader);
         if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
-            throw new ShaderCompileError(gl.getShaderInfoLog(shader));
+            throw new Error(gl.getShaderInfoLog(shader));
         return shader;
     }
 });
