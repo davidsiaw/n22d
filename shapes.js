@@ -11,13 +11,12 @@ function vertex_circle(num_vertices, template, closed) {
 // n_loops: Number of loops of triangles. The model will have small holes
 //          unless n_loops is even.
 // returns <2*n_circle*n_loops> triangles
-function klein_bottle(n_circle, n_loops) {
+function klein_bottle(n_circle, n_loops, colour) {
     var loops = new Array(n_loops);
     var trans = new BigMatrix().to_translation(new Vector([0, 0, 2]));
     var torus_rot = new BigMatrix();
     var mobius_rot = new BigMatrix();
     var offset_rot = new BigMatrix();
-    var colour = new Vector([0, 0.3, .8, .8]);
 
     var template = new Vertex(new Vector([1, 1, 0]), colour);
     template.tangent.add([new Vector([0, 0, 1]), new Vector([0, 0, 0, 1])]);

@@ -197,60 +197,9 @@ var Viewport = Class.create({
     }
 });
 
-var Colour = Class.create(Vector, {
-    hsv2rgb: function() {
-        // Lineage:
-        // - http://jsres.blogspot.com/2008/01/convert-hsv-to-rgb-equivalent.html
-        // - http://www.easyrgb.com/math.html
-        var h=this.a[0], s=this.a[1], v=this.a[2];
-        var r, g, b;
-        if(s==0){
-            this.a[0] = this.a[1] = this.a[2] = v;
-        }else{
-            // h must be < 1
-            var var_h = h * 6;
-            if (var_h==6) var_h = 0;
-            // Or ... var_i = floor( var_h )
-            var var_i = Math.floor( var_h );
-            var var_1 = v*(1-s);
-            var var_2 = v*(1-s*(var_h-var_i));
-            var var_3 = v*(1-s*(1-(var_h-var_i)));
-            if(var_i==0){
-                var_r = v;
-                var_g = var_3;
-                var_b = var_1;
-            }else if(var_i==1){
-                var_r = var_2;
-                var_g = v;
-                var_b = var_1;
-            }else if(var_i==2){
-                var_r = var_1;
-                var_g = v;
-                var_b = var_3
-            }else if(var_i==3){
-                var_r = var_1;
-                var_g = var_2;
-                var_b = v;
-            }else if (var_i==4){
-                var_r = var_3;
-                var_g = var_1;
-                var_b = v;
-            }else{
-                var_r = v;
-                var_g = var_1;
-                var_b = var_2;
-            }
-            this.a[0] = var_r;
-            this.a[1] = var_g;
-            this.a[2] = var_b;
-        }
-        return this;
-    }
-});
-
 /* A vertex of a model; encapsulates all per-vertex input to a vertex shader.
 loc: Vector, a point in affine space -- coordinate [0] must be nonzero.
-colour: a Colour
+colour: RGBA Vector
 tangent: local tangent Space for lighting. If empty (the default), the Vertex
     will be coloured as if it is fully lit.
 */

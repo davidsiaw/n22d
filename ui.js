@@ -55,7 +55,7 @@ var BallUI = Class.create({
         var colour = this.colour;
         var ball = sphere_subdivide(icosahedron(), 1).each(function (t) {
             t[0].colour = t[1].colour = t[2].colour = colour.copy();
-            t[0].colour.a[3] = Math.random()/6 + .2;
+            t[0].colour.a[3] = Math.random()/10 + .2;
         });
         ball = sphere_finish(sphere_subdivide(ball, 2));
 
