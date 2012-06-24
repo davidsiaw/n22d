@@ -3,7 +3,7 @@ var FourD = module(function($) {
         initialize: function() {
             // writable
             this.transform = new AffineUnitaryBigMatrix().to_I();
-            this.light = new Vector([1]);
+            this.light = new Vector([1, 0, 0, -1]);
             this.ambient = .3;
             this.touch = new Vector([]);
             this.touch_radius = 1/8;
@@ -188,9 +188,6 @@ var FourD = module(function($) {
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             gl.drawArrays(gl.TRIANGLES, 0, v._vertices.length);
             gl.finish();
-        },
-
-        _set_transform: function(transform) {
         },
 
         _vs_src: [
