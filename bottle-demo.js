@@ -6,7 +6,6 @@ function klein_bottle_demo() {
     var ball4_colour = hsv2rgb(new Vector([1/3, .5, 1, 0]));
     var bottle_colour = hsv2rgb(new Vector([2/3, 1, 1, .8]));
     
-
     // bottle model
     var vertices = klein_bottle(30, 60, bottle_colour);
     var r = new BigMatrix().to_rotation(1/4, 1, 3);
@@ -16,11 +15,10 @@ function klein_bottle_demo() {
     var origin = new Vector([1]);
     var s3 = new AffineSpace(origin, [[0,1], [0,0,1], [0,0,0,1]]);
     var s4 = new AffineSpace(origin, [[0,1], [0,0,0,1], [0,0,0,0,1]]);
-    var ball3 = new BallUI(n22d, 3.5, s3, ball3_colour);
-    var ball4 = new BallUI(n22d, 3.5, s4, ball4_colour);
+    var ball3 = new BallUI(n22d, 1, s3, ball3_colour);
+    var ball4 = new BallUI(n22d, 1, s4, ball4_colour);
 
     n22d.set_vertices(vertices.concat(ball3.model(), ball4.model()));
-    n22d.transform.to_translation(new Vector([0, 0, 0, -9.5]));
 
     var drag = new MouseDrag(function(mouse_drag) {
         if (mouse_drag.dragging) {

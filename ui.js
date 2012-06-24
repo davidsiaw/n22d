@@ -55,7 +55,7 @@ var BallUI = Class.create({
         var colour = this.colour;
         var ball = sphere_subdivide(icosahedron(), 1).each(function (t) {
             t[0].colour = t[1].colour = t[2].colour = colour.copy();
-            t[0].colour.a[3] = Math.random()/10 + .2;
+            t[0].colour.a[3] = Math.random()/8 + .2;
         });
         ball = sphere_finish(sphere_subdivide(ball, 2));
 
@@ -93,6 +93,6 @@ var BallUI = Class.create({
         var adjacent = Math.sqrt(this.radius*this.radius-norm*norm);
         assert(local.diff.basis.length == 1);
         var d = local.diff.basis[0].times(adjacent);
-        return this.n22d.max_z([closest.plus(d), closest.minus(d)]);
+        return this.n22d.min_z([closest.plus(d), closest.minus(d)]);
     }
 });

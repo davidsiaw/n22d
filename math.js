@@ -86,21 +86,6 @@ var Matrix = Class.create({
         return this;
     },
 
-    // actually an opengl perspective transform; puts vertices into clip
-    // coordinates. does not do a perspective transformation
-    to_perspective: function(fov, aspect_ratio, z_near, z_far) {
-        assert(this.rows == 4);
-        assert(this.cols == 4);
-        this.to_0();
-        var cot = 1/Math.tan(fov/2);
-        this.a[0][3] = -1;
-        this.a[1][1] = cot / aspect_ratio;
-        this.a[2][2] = cot;
-        this.a[3][0] = 2 * z_near * z_far / (z_far - z_near);
-        this.a[3][3] = -(z_far + z_near) / (z_far - z_near);
-        return this;
-    },
-
     // dimension combining matrix
     to_dim_comb: function() {
         assert(this.rows == 4);
@@ -327,7 +312,6 @@ var BigMatrix = Class.create({
 
     to_I: function() {
         this.m = new Matrix(0, 0);
-        this.get = BigMatrix.I_GET_FN;
         return this;
     },
 
@@ -444,6 +428,8 @@ var AffineUnitaryBigMatrix = Class.create(BigMatrix, {
     inverse: function() {
         assert(this.m.is_affine());
         var size = Math.max(this.m.rows, this.m.cols);
+        if (size == 0)
+            return this;
         var m = this._expand(size, size).transpose();
         var v = new Vector(m.a[0]).copy();
         for (var i = 1; i < m.cols; i++)

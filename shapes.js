@@ -13,12 +13,12 @@ function vertex_circle(num_vertices, template, closed) {
 // returns <2*n_circle*n_loops> triangles
 function klein_bottle(n_circle, n_loops, colour) {
     var loops = new Array(n_loops);
-    var trans = new BigMatrix().to_translation(new Vector([0, 0, 2]));
+    var trans = new BigMatrix().to_translation(new Vector([0, 0, .5]));
     var torus_rot = new BigMatrix();
     var mobius_rot = new BigMatrix();
     var offset_rot = new BigMatrix();
 
-    var template = new FourD.Vertex(new Vector([1, 1, 0]), colour);
+    var template = new FourD.Vertex(new Vector([1, .25, 0]), colour);
     template.tangent.add([new Vector([0, 0, 1]), new Vector([0, 0, 0, 1])]);
     var circle_0 = vertex_circle(n_circle, template); // original circle
     var circle_prev = circle_0.map(function(v) { // previous circle
