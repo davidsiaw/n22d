@@ -116,9 +116,9 @@ var Matrix = Class.create({
             var result = new other.constructor(new Array(this.rows));
         } else if (other instanceof Matrix) {
             var result = new other.constructor(this.rows, other.cols);
-        } else if (other instanceof Space) {
-            return new other.constructor(this.times(other.basis));
-        } else if (other instanceof AffineSpace) {
+        } else if (other.as_Vectors)
+            return other.as_Vectors(this.times.bind(this));
+        else if (other instanceof AffineSpace) {
             return new other.constructor(this.times(other.point), this.times(other.diff));
         } else
             assert(false);
@@ -367,8 +367,8 @@ var BigMatrix = Class.create({
             var a = this._expand(rows, middle);
             var b = o.copy(middle);
             return a.times(b);
-        } else if (o instanceof Space)
-            return new Space(this.times(o.basis));
+        } else if (o.as_Vectors)
+            return o.as_Vectors(this.times.bind(this));
         else if (o instanceof AffineSpace)
             return new AffineSpace(this.times(o.point), this.times(o.diff));
         else
@@ -450,6 +450,15 @@ var AffineUnitaryBigMatrix = Class.create(BigMatrix, {
             return $super(o);
     }
 });
+
+function as_Vector(x) {
+    if (x instanceof Vector)
+        return x;
+    else if (x instanceof Array)
+        return new Vector(x);
+    else
+        assert(false);
+}
 
 // vectors' infiniteness matches whatever you try to operate on
 // them with:
@@ -600,6 +609,10 @@ var Space = Class.create({
 
     copy: function() { return new Space(this); },
 
+    as_Vectors: function(func) {
+        return new Space(func(this.basis));
+    },
+
     project_vector: function(vector) {
         var p = new Vector([]);
         for (var i = 0; i < this.basis.length; i++)
@@ -613,8 +626,7 @@ var Space = Class.create({
 
     // expands if ortho_norm/vector_norm >= tolerance
     add_vector: function(vector, tolerance) {
-        if (vector instanceof Array)
-            vector = new Vector(vector);
+        vector = as_Vector(vector);
         tolerance = tolerance || 1e-6; // XXX awful
         var ortho = this.ortho_vector(vector);
         var ortho_norm = ortho.norm();

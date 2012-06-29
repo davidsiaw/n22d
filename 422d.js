@@ -141,8 +141,8 @@ var FourD = module(function($) {
     */
     $.Vertex = Class.create({
         initialize: function(loc, colour, tangent) {
-            this.loc = loc || null;
-            this.colour = colour || null;
+            this.loc = loc ? as_Vector(loc) : null;
+            this.colour = colour ? as_Vector(colour) : null;
             this.tangent = tangent || new Space();
         },
 
@@ -154,10 +154,10 @@ var FourD = module(function($) {
             return v;
         },
 
-        times_left: function(m) {
+        as_Vectors: function(func) {
             var v = this.copy();
-            v.loc = m.times(v.loc);
-            v.tangent = m.times(v.tangent);
+            v.loc = func(v.loc);
+            v.tangent = func(v.tangent);
             return v;
         }
     });

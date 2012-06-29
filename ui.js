@@ -64,7 +64,7 @@ var BallUI = Class.create({
         var move = this.space.diff.basis_change().transpose();
         return ball.map(function(v) {
             v.loc = scale.times(v.loc);
-            v = v.times_left(move);
+            v = move.times(v);
             v.loc = v.loc.plus(this.space.point);
             return v;
         }, this);

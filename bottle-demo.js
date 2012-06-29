@@ -9,7 +9,10 @@ function klein_bottle_demo() {
     // bottle model
     var vertices = klein_bottle(30, 60, bottle_colour);
     var r = new BigMatrix().to_rotation(1/4, 1, 3);
-    vertices = vertices.map(function(v) { return v.times_left(r); });
+    var s = new BigMatrix().to_scale([1, .75, .75, .75, .75]);
+    vertices = r.times(s).times(vertices).each(function(v) {
+        v.colour = bottle_colour;
+    });
 
     // ui
     var origin = new Vector([1]);
