@@ -4,7 +4,7 @@ var FourD = module(function($) {
             // writable
             this.transform = new AffineUnitaryBigMatrix().to_I();
             this.light = new Vector([1, 0, 0, -1]);
-            this.ambient = 0.3;
+            this.ambient = 0;
             this.touch = new Vector([]);
             this.touch_radius = 1/8;
 
@@ -12,10 +12,7 @@ var FourD = module(function($) {
             this.dom = new Element('div');
             this.canvas = new Element('canvas');
             this.dom.update(this.canvas);
-
-            var resize = this._resize_cb.bind(this);
-            this.dom.observe('DOMNodeInserted', resize);
-            this.dom.observe('resize', resize);
+            this.dom.observe('DOMNodeInserted', this._dom_inserted_cb.bind(this));
 
             // gl
             var gl = this._gl = GL.new_GL(this.canvas, {antialias: true});
@@ -53,7 +50,7 @@ var FourD = module(function($) {
             this._vertices = vertices;
         },
 
-        _resize_cb: function() {
+        _dom_inserted_cb: function() {
             var s = new Element.Layout(this.dom).get('width');
             this.canvas.width = this.canvas.height = s;
             this._gl.viewport(0, 0, s, s);
