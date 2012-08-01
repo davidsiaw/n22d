@@ -1,12 +1,8 @@
 function klein_bottle_demo() {
     var n22d = window.n22d = new FourD.Four22d();
 
-    // colours
-    var ball3_colour = hsv2rgb(new Vector([0, .5, 1, 0]));
-    var ball4_colour = hsv2rgb(new Vector([1/3, .5, 1, 0]));
-    var bottle_colour = hsv2rgb(new Vector([2/3, 1, 1, .8]));
-    
     // bottle model
+    var bottle_colour = hsv2rgb(new Vector([2/3, 1, 1, .8]));
     var vertices = klein_bottle(30, 60, bottle_colour);
     var r = new BigMatrix().to_rotation(1/4, 1, 3);
     var s = new BigMatrix().to_scale([1, .75, .75, .75, .75]);
@@ -14,30 +10,15 @@ function klein_bottle_demo() {
         v.colour = bottle_colour;
     });
 
-    // ui
-    var origin = new Vector([1]);
-    var s3 = new AffineSpace(origin, [[0,1], [0,0,1], [0,0,0,1]]);
-    var s4 = new AffineSpace(origin, [[0,1], [0,0,0,1], [0,0,0,0,1]]);
-    var ball3 = new BallUI(n22d, 1, s3, ball3_colour);
-    var ball4 = new BallUI(n22d, 1, s4, ball4_colour);
-
-    n22d.set_vertices(vertices.concat(ball3.model(), ball4.model()));
-
-    var drag = new MouseDrag(function(mouse_drag) {
-        if (mouse_drag.dragging) {
-            if (mouse_drag.move_event.shiftKey)
-                var ball = ball4;
-            else
-                var ball = ball3;
-            var a = ball.grab(mouse_drag.x, mouse_drag.y);
-            var b = ball.grab(mouse_drag.x_prev, mouse_drag.y_prev);
-            n22d.transform = n22d.transform.times(ball.drag(a, b));
-            n22d.touch = n22d.transform.times(a);
-        } else
-            n22d.touch = new Vector([]); // XXX hack
-        n22d.draw_async();
-    });
-    drag.bind(n22d.canvas);
+    n22d.set_vertices(vertices);
+    function rotate_draw() {
+        var time = new Date().getTime();
+        n22d.transform.to_rotation(time/5000, 1, 3);
+        n22d.transform = n22d.transform.times(new AffineUnitaryBigMatrix().to_rotation(time/4000, 2, 4));
+        n22d.draw();
+        requestAnimFrame(rotate_draw);
+    }
+    requestAnimFrame(rotate_draw);
 
     return n22d;
 }
