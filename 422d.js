@@ -112,7 +112,6 @@ var FourD = module(function($) {
         _vs_src: [
             'uniform vec4 translation;',
             'uniform mat4 rotation;',
-            'uniform mat4 projection;',
             'uniform vec4 light;',
             'uniform float ambient;',
 
@@ -128,7 +127,7 @@ var FourD = module(function($) {
             'void main(void) {',
             '    vec4 v = rotation*coords + translation;',
             '    f_loc = v;',
-            '    gl_Position = vec4(v[0], v[1], v[2] + v[3], 1.);',
+            '    gl_Position = vec4(v[0], v[1], (v[2]+v[3])/2., 1.);',
 
             '    vec4 t1 = rotation * tangent1;',
             '    vec4 t2 = rotation * tangent2;',

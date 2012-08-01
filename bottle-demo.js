@@ -5,8 +5,7 @@ function klein_bottle_demo() {
     var bottle_colour = hsv2rgb(new Vector([2/3, 1, 1, 0.8]));
     var vertices = klein_bottle(30, 60, bottle_colour);
     var r = new BigMatrix().to_rotation(1/4, 1, 3);
-    var s = new BigMatrix().to_scale([1, 0.75, 0.75, 0.75, 0.75]);
-    vertices = r.times(s).times(vertices).each(function(v) {
+    vertices = r.times(vertices).each(function(v) {
         v.colour = bottle_colour;
     });
 
