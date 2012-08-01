@@ -13,8 +13,8 @@ function klein_bottle_demo() {
     n22d.set_vertices(vertices);
     function rotate_draw() {
         var time = new Date().getTime();
-        n22d.transform.to_rotation(time/5000, 1, 3);
-        n22d.transform = n22d.transform.times(new AffineUnitaryBigMatrix().to_rotation(time/4000, 2, 4));
+        n22d.transform.to_rotation(time/10000, 1, 3);
+        n22d.transform = n22d.transform.times(new AffineUnitaryBigMatrix().to_rotation(time/8000, 2, 4));
         n22d.draw();
         requestAnimFrame(rotate_draw);
     }

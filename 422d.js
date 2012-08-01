@@ -11,16 +11,15 @@ var FourD = module(function($) {
             // readable
             this.dom = new Element('div');
             this.canvas = new Element('canvas');
+            this.dom.update(this.canvas);
 
             var resize = this._resize_cb.bind(this);
             this.dom.observe('DOMNodeInserted', resize);
             this.dom.observe('resize', resize);
-            this.dom.update(this.canvas);
 
             // gl
-            var gl = this._gl = GL.new_GL(this.canvas, {alpha: true});
+            var gl = this._gl = GL.new_GL(this.canvas, {antialias: true});
             if (!gl) return;
-            gl.disable(gl.BLEND);
             gl.enable(gl.DEPTH_TEST);
             this._draw_prog = new DrawProgram(gl);
 
@@ -55,10 +54,9 @@ var FourD = module(function($) {
         },
 
         _resize_cb: function() {
-            var gl = this._gl;
-            var s = 512; // XXX
+            var s = new Element.Layout(this.dom).get('width');
             this.canvas.width = this.canvas.height = s;
-            gl.viewport(0, 0, s, s);
+            this._gl.viewport(0, 0, s, s);
         },
 
         draw: function() {
