@@ -4,7 +4,7 @@ var FourD = module(function($) {
             // writable
             this.transform = new AffineUnitaryBigMatrix().to_I();
             this.light = new Vector([1, 0, 0, -1]);
-            this.ambient = .3;
+            this.ambient = 0.3;
             this.touch = new Vector([]);
             this.touch_radius = 1/8;
 

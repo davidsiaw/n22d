@@ -2,10 +2,10 @@ function klein_bottle_demo() {
     var n22d = window.n22d = new FourD.Four22d();
 
     // bottle model
-    var bottle_colour = hsv2rgb(new Vector([2/3, 1, 1, .8]));
+    var bottle_colour = hsv2rgb(new Vector([2/3, 1, 1, 0.8]));
     var vertices = klein_bottle(30, 60, bottle_colour);
     var r = new BigMatrix().to_rotation(1/4, 1, 3);
-    var s = new BigMatrix().to_scale([1, .75, .75, .75, .75]);
+    var s = new BigMatrix().to_scale([1, 0.75, 0.75, 0.75, 0.75]);
     vertices = r.times(s).times(vertices).each(function(v) {
         v.colour = bottle_colour;
     });
@@ -51,7 +51,7 @@ function hsv2rgb(vec) {
         }else if(var_i==2){
             var_r = var_1;
             var_g = v;
-            var_b = var_3
+            var_b = var_3;
         }else if(var_i==3){
             var_r = var_1;
             var_g = var_2;

@@ -110,17 +110,16 @@ var Matrix = Class.create({
     },
 
     times: function(other) {
+        var result;
         if (other instanceof Array)
             return other.map(this.times, this);
         else if (other instanceof Vector) {
-            var result = new other.constructor(new Array(this.rows));
+            result = new other.constructor(new Array(this.rows));
         } else if (other instanceof Matrix) {
-            var result = new other.constructor(this.rows, other.cols);
+            result = new other.constructor(this.rows, other.cols);
         } else if (other.as_Vectors)
             return other.as_Vectors(this.times.bind(this));
-        else if (other instanceof AffineSpace) {
-            return new other.constructor(this.times(other.point), this.times(other.diff));
-        } else
+        else
             assert(false);
         return result.to_times(this, other);
     },
@@ -162,124 +161,6 @@ var Matrix = Class.create({
             this.a[row][i] = this.a[row][j];
             this.a[row][j] = tmp;
         }
-    },
-
-    solve_vector: function(vector) {
-        var pi = this.pseudoinverse();
-        var I = new Matrix(pi.rows, this.cols).to_I();
-        var null_space = pi.times(this).minus(I).image();
-        return new AffineSpace(pi.times(vector), null_space);
-    },
-
-    // affine-aware version of solve. distinguishes between points and
-    // vectors according to .isP() and .isV()
-    solve_affine: function(space) {
-        if (space instanceof AffineSpace) {
-            var solution = this.solve_vector(space.point);
-            solution.diff.add(this.solve_affine(space.diff));
-            return solution;
-        } else if (space instanceof Space) {
-            var solution = new Space();
-            for (var i = 0; i < space.basis.length; i++) {
-                assert(space.basis[i].isV());
-                solution.add(this.solve_affine(space.basis[i]));
-            }
-            return solution;
-        } else if (space.isP())
-            return this.solve_vector(space);
-        else {
-            var solution = this.solve_vector(space);
-            solution.diff.add(solution.point);
-            return solution.diff;
-        }
-    },
-
-    image: function() {
-        return new Space(this.a.map(function (row) { return new Vector(row); }));
-    },
-
-    pseudoinverse: function() {
-        var t = this.transpose();
-        if (this.rows <= this.cols)
-            return t.times(this.times(t).inverse());
-        else
-            return t.times(this).inverse().times(t);
-    },
-
-    inverse: function() {
-        assert(this.rows == this.cols);
-        return this.inverse_times(new Matrix(this.rows, this.cols).to_I());
-    },
-
-    inverse_test: function() {
-        return this.times(this.inverse());
-    },
-
-    inverse_times: function(other) {
-        assert(this.rows == other.rows);
-        var plu = this.plu_decompose();
-        var p = plu[0];
-        var l = plu[1];
-        var u = plu[2];
-
-        // invert p
-        other = p.transpose().times(other);
-
-        // invert l
-        for (var middle = 0; middle < this.rows; middle++)
-            for (var row = middle+1; row < this.rows; row++)
-                if (l.a[row][middle])
-                    for (var col = 0; col < other.cols; col++)
-                        other.a[row][col] -= l.a[row][middle] * other.a[middle][col];
-
-        // invert u
-        for (var middle = this.rows-1; middle >= 0; middle--) {
-            for (var col = 0; col < other.cols; col++)
-                other.a[middle][col] /= u.a[middle][middle];
-            for (var row = 0; row < middle; row++)
-                if (u.a[row][middle])
-                    for (var col = 0; col < other.cols; col++)
-                        other.a[row][col] -= u.a[row][middle] * other.a[middle][col];
-        }
-
-        return other;
-    },
-
-    inverse_times_test: function(other) {
-        return [other, this.times(this.inverse_times(other))];
-    },
-
-    // decompose into [row_permutation, lower_unit_triangular, upper_triangular]
-    plu_decompose: function() {
-        var p = new Matrix(this.rows, this.rows).to_I();
-        var l = new Matrix(this.rows, this.rows).to_I();
-        var u = this.copy();
-
-        for (var diag = 0; diag < l.rows; diag++) {
-            var max = diag;
-            for (var row = diag+1; row < u.rows; row++)
-                if (Math.abs(u.a[row][diag]) > Math.abs(u.a[max][diag]))
-                    max = row;
-            p.swap_rows(diag, max);
-            l.swap_rows(diag, max);
-            l.swap_cols(diag, max);
-            u.swap_rows(diag, max);
-
-            for (var row = diag+1; row < u.rows; row++) {
-                l.a[row][diag] = u.a[row][diag] / u.a[diag][diag];
-                for (var col = 0; col < u.cols; col++)
-                    u.a[row][col] -= l.a[row][diag] * u.a[diag][col];
-            }
-        }
-        return [p.transpose(), l, u];
-    },
-
-    plu_decompose_test: function() {
-        var plu = this.plu_decompose();
-        var p = plu[0];
-        var l = plu[1];
-        var u = plu[2];
-        return [this, p.times(l).times(u), p, l, u];
     },
 
     as_webgl_array: function() {
@@ -348,11 +229,6 @@ var BigMatrix = Class.create({
         return new BigMatrix(this.m.transpose());
     },
 
-    inverse: function() {
-        var size = Math.max(this.m.rows, this.m.cols);
-        return new BigMatrix(this._expand(size, size).inverse());
-    },
-
     times: function(o) {
         if (o instanceof Array)
             return o.map(this.times, this);
@@ -369,8 +245,6 @@ var BigMatrix = Class.create({
             return a.times(b);
         } else if (o.as_Vectors)
             return o.as_Vectors(this.times.bind(this));
-        else if (o instanceof AffineSpace)
-            return new AffineSpace(this.times(o.point), this.times(o.diff));
         else
             assert(false);
     },
@@ -423,21 +297,6 @@ var AffineUnitaryBigMatrix = Class.create(BigMatrix, {
     initialize: function($super, m) {
         $super(m);
         assert(this.m.is_affine());
-    },
-
-    inverse: function() {
-        assert(this.m.is_affine());
-        var size = Math.max(this.m.rows, this.m.cols);
-        if (size == 0)
-            return this;
-        var m = this._expand(size, size).transpose();
-        var v = new Vector(m.a[0]).copy();
-        for (var i = 1; i < m.cols; i++)
-            m.a[0][i] = 0;
-        v = m.times(v);
-        for (var i = 1; i < m.rows; i++)
-            m.a[i][0] = -v.a[i];
-        return new AffineUnitaryBigMatrix(m);
     },
 
     times: function($super, o) {
@@ -643,8 +502,6 @@ var Space = Class.create({
             return;
         } else if (space instanceof Array)
             var vectors = space;
-        else if (space instanceof AffineSpace)
-            var vectors = space.diff.basis.concat([space.point]);
         else
             var vectors = space.basis;
 
@@ -696,47 +553,5 @@ var Space = Class.create({
         for (var diag = 0; diag < ret.rows; diag++) // add I
             ret.a[diag][diag] += 1;
         return ret;
-    },
-
-    intersection: function(space) {
-        var size = Math.max(this.nd, space.nd);
-        var proj = this.projection(size).times(space.projection(size));
-        var I = new Matrix(size, size).to_I();
-        var i = I.image().minus(proj.minus(I).image());
-        assert(i.basis.length <= this.basis.length);
-        assert(i.basis.length <= space.basis.length);
-        return i;
-    }
-});
-
-var AffineSpace = Class.create({
-    // point and difference space
-    initialize: function(point, diff) {
-        this.point = point;
-        this.diff = new Space(diff);
-    },
-
-    intersection: function(other) {
-        var a = new Space(this);
-        var b = new Space(other);
-        var ab = a.intersection(b);
-        var affine = new AffineSpace(null, []);
-        for (var i = 0; i < ab.basis.length; i++) {
-            var v = ab.basis[i];
-            if (v.isP()) {
-                if (affine.point)
-                    affine.diff.add(v.point_minus(affine.point.times(v.a[0])));
-                else
-                    affine.point = v.affine_normalized();
-            } else
-                affine.diff.add(v);
-        }
-        return affine;
-    },
-
-    closest_to: function(point) {
-        var a = this.diff.basis_change().transpose();
-        var pi = a.pseudoinverse();
-        return a.times(pi).times(point.minus(this.point)).plus(this.point);
     }
 });

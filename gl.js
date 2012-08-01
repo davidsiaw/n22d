@@ -26,7 +26,7 @@ var GL = module(function($) {
                    if (arg === null) // XXX bug in thing
                        arg = 'null';
                    else
-                       arg = WebGLDebugUtils.glFunctionArgToString(func, i, arg)
+                       arg = WebGLDebugUtils.glFunctionArgToString(func, i, arg);
                    error.args.push(arg);
                }
                throw error;
@@ -37,7 +37,7 @@ var GL = module(function($) {
             gl.initialize();
             return gl;
         }
-    }
+    };
 
     GLMethods = {
         initialize: function() {
@@ -136,7 +136,7 @@ var GL = module(function($) {
 
             var attribs = this.get(gl.ACTIVE_ATTRIBUTES);
             this._attribs = {};
-            for (var i = 0; i < attribs; i++) {
+            for (i = 0; i < attribs; i++) {
                 var attrib = gl.getActiveAttrib(prog, i);
                 this._attribs[attrib.name] = gl.getAttribLocation(prog, attrib.name);
             }
@@ -156,7 +156,7 @@ var GL = module(function($) {
             this._run.apply(this, arguments);
             gl.useProgram(null);
 
-            for (var i = 0; i < attribs; i++)
+            for (i = 0; i < attribs; i++)
                 gl.disableVertexAttribArray(i);
         },
 
@@ -165,7 +165,7 @@ var GL = module(function($) {
             var shader = gl.createShader(type);
             gl.shaderSource(shader, src);
             gl.compileShader(shader);
-            if (gl.getShaderParameter(shader, gl.COMPILE_STATUS) == 0)
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
                 throw new Error(gl.getShaderInfoLog(shader));
             return shader;
         }
