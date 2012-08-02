@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang='en'>
 <head>
-<title>Spin a Klein Bottle</title>
+<title>Klein Bottle</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <link href="style.css" rel="stylesheet" type="text/css">
@@ -19,28 +19,22 @@
 
 <script type="text/javascript">
     document.observe("dom:loaded", function() {
-        $$('body')[0].insert(klein_bottle_demo().dom);
+        klein_bottle_demo($('bottle'));
     });
 </script>
 
 <style type="text/css">
-    body {
+    .body {
         margin-left: auto;
         margin-right: auto;
         max-width:30em;
-        font-family: Georgia, "Times New Roman", Times, serif;
         text-align: justify;
-        font-size:large;
-    }
-    a {
-        text-decoration:none;
     }
     .logo {
         display:block;
         font-size:x-large;
         color:#808080;
         text-indent:2em;
-        text-decoration:none;
     }
     .title {
         display:block;
@@ -56,8 +50,42 @@
 </head>
 
 <body>
-    <a class="logo" href="http://tenfour.ag">tenfour</a>
-    <div class="title"><a href="klein-bottle">Spin a Klein Bottle</a></div>
+<div class="body">
+<a class="logo" href="http://tenfour.ag">tenfour</a>
+<div class="title"><a href="klein-bottle">Klein Bottle</a></div>
+
+<p>
+The <a href="http://en.wikipedia.org/wiki/Klein_bottle">Klein bottle</a>
+is a four-dimensional surface that only has one side. In this way it's a bit like the
+three-dimensional <a href="http://en.wikipedia.org/wiki/Möbius_strip">Möbius strip</a> 
+but instead of a flat cross-section and one edge the Klein bottle has a circular
+cross-section and no edges.
+</p>
+
+<div id="bottle"></div>
+
+<p>
+If your browser supports WebGL you should see a spinning Klein bottle above. It looks
+like it's morphing and passing through itself while it spins but that's
+actually just an artifact of displaying four dimensions on two. Morphing,
+at least, also occurs when you render three dimensions onto two: a cube's square
+faces only look square when you look at them straight on; at other angles they're
+distorted.
+</p>
+
+<p>
+After being rotated, the model is
+<a href="http://en.wikipedia.org/wiki/Orthographic_projection">Orthographically projected</a>
+onto two dimensions and shaded using a straightforward generalization of the
+<a href="http://en.wikipedia.org/wiki/Phong_reflection_model">Phong reflection model</a>.
+</p>
+
+<p>
+The details are in the <a href="https://github.com/adrianbg/n22d">source code</a>,
+which is free for any purpose (WTFPL).
+<a href="mailto:ag@tenfour.ag">Let me know</a> if you find it useful!
+</p>
+</div>
 </body>
 
 </html>

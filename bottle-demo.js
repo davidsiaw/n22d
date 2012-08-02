@@ -1,5 +1,11 @@
-function klein_bottle_demo() {
-    var n22d = window.n22d = new FourD.Four22d();
+/* This program is free software. It comes without any warranty, to
+ * the extent permitted by applicable law. You can redistribute it
+ * and/or modify it under the terms of the Do What The Fuck You Want
+ * To Public License, Version 2, as published by Sam Hocevar. See
+ * http://sam.zoy.org/wtfpl/COPYING for more details. */
+
+function klein_bottle_demo(dom) {
+    var n22d = window.n22d = new FourD.Four22d(dom);
 
     // bottle model
     var bottle_colour = hsv2rgb(new Vector([2/3, 1, 1, 0.8]));
@@ -18,8 +24,6 @@ function klein_bottle_demo() {
         requestAnimFrame(rotate_draw);
     }
     requestAnimFrame(rotate_draw);
-
-    return n22d;
 }
 
 function hsv2rgb(vec) {

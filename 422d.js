@@ -1,6 +1,12 @@
+/* This program is free software. It comes without any warranty, to
+ * the extent permitted by applicable law. You can redistribute it
+ * and/or modify it under the terms of the Do What The Fuck You Want
+ * To Public License, Version 2, as published by Sam Hocevar. See
+ * http://sam.zoy.org/wtfpl/COPYING for more details. */
+
 var FourD = module(function($) {
     $.Four22d = Class.create({
-        initialize: function() {
+        initialize: function(dom) {
             // writable
             this.transform = new AffineUnitaryBigMatrix().to_I();
             this.light = new Vector([1, 0, 0, -1]);
@@ -9,15 +15,17 @@ var FourD = module(function($) {
             this.touch_radius = 1/8;
 
             // readable
-            this.dom = new Element('div');
+            this.dom = dom;
             this.canvas = new Element('canvas');
             this.dom.update(this.canvas);
-            this.dom.observe('DOMNodeInserted', this._dom_inserted_cb.bind(this));
+            var size = new Element.Layout(this.dom).get('width');
+            this.canvas.width = this.canvas.height = size;
 
             // gl
             var gl = this._gl = GL.new_GL(this.canvas, {antialias: true});
             if (!gl) return;
             gl.enable(gl.DEPTH_TEST);
+            gl.viewport(0, 0, size, size);
             this._draw_prog = new DrawProgram(gl);
 
             // vertex attributes
@@ -51,9 +59,6 @@ var FourD = module(function($) {
         },
 
         _dom_inserted_cb: function() {
-            var s = new Element.Layout(this.dom).get('width');
-            this.canvas.width = this.canvas.height = s;
-            this._gl.viewport(0, 0, s, s);
         },
 
         draw: function() {
