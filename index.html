@@ -27,7 +27,7 @@
 </script>
 
 <style type="text/css">
-    .body {
+    body {
         margin-left: auto;
         margin-right: auto;
         max-width: 30em;
@@ -42,7 +42,16 @@
     img { max-width: 100%; }
     h1 { text-align: left; }
     h2 { text-align: left; }
-    .shameless-plug { font-size: x-large; }
+    .shameless-plug {
+        text-align: center;
+        font-size: x-large;
+        margin: 1em;
+    }
+    .shameless-plug a {
+        color: black;
+        background-color: #CCF;
+        padding: .5em;
+    }
 </style>
 
 <script type="text/javascript">
@@ -61,13 +70,15 @@
 </head>
 
 <body>
-<div class="body">
 <h1><a href="n22d">Visualizing \(n\)d Surfaces</a></h1>
 
-<p class="shameless-plug">
-Adrian Bauer - <a href="/">hire Adrian as a consultant</a><br />
-August 13, 2012
+<p>
+By <a href="mailto:ag@tenfour.ag">Adrian Bauer</a>, August 14, 2012
 </p>
+
+<div class="shameless-plug">
+<a href="/">Hire Adrian</a>
+</div>
 
 <p>
 Sane, sober humans don't generally claim to perceive more than three spatial
@@ -151,7 +162,7 @@ to get the usual formula for diffuse light intensity in 3d:
 $$cos \theta = |\hat{L}||\hat{N}|cos \theta = \hat{L} \cdot \hat{N}$$
 
 <p>
-In a universe of \(n > 3\) dimensions the situation is a little more
+In a universe of \(n &gt; 3\) dimensions the situation is a little more
 complicated. The surface, though it may be bent and twisted in the \(n\)
 dimensions, is still a sort of two-dimensional object with no thickness to it,
 and the space of
@@ -202,11 +213,10 @@ which is free for any purpose (WTFPL)
 and <a href="mailto:ag@tenfour.ag">let me know</a> if you find it useful!
 </p>
 
-<p class="shameless-plug">
-Better yet, check out my <a href="/portfolio">resume</a> and consider hiring me
-as a consultant!
-</p>
+<div class="shameless-plug">
+<a href="/">Better yet, hire me</a>
 </div>
+
 </body>
 
 </html>
