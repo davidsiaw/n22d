@@ -6,6 +6,9 @@
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <link href="style.css" rel="stylesheet" type="text/css">
 
+<script type="text/javascript"
+  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
 <script src="prototype.js"></script>
 <script src="klein-bottle/webgl-utils.js"></script>
 <script src="klein-bottle/webgl-debug.js"></script>
@@ -27,14 +30,19 @@
     .body {
         margin-left: auto;
         margin-right: auto;
-        max-width:30em;
+        max-width: 30em;
         text-align: justify;
     }
     .error {
-        font-size:xx-large;
+        font-size: xx-large;
         color:#FF0000;
         margin:1em;
     }
+    div.img { text-align: center; }
+    img { max-width: 100%; }
+    h1 { text-align: left; }
+    h2 { text-align: left; }
+    .shameless-plug { font-size: x-large; }
 </style>
 
 <script type="text/javascript">
@@ -54,39 +62,149 @@
 
 <body>
 <div class="body">
-<h1><a href="klein-bottle">Klein Bottle</a></h1>
-<a href="/">Back to portfolio</a>
+<h1><a href="klein-bottle">Visualizing \(n\)d Surfaces</a></h1>
+
+<p class="shameless-plug">
+Adrian Bauer - <a href="/">hire Adrian as a consultant</a><br />
+August 13, 2012
+</p>
 
 <p>
-The <a href="http://en.wikipedia.org/wiki/Klein_bottle">Klein bottle</a>
-is a four-dimensional surface that only has one side. In this way it's a bit like the
-three-dimensional <a href="http://en.wikipedia.org/wiki/Möbius_strip">Möbius strip</a> 
-but instead of a flat cross-section and one edge the Klein bottle has a circular
-cross-section and no edges.
+Sane, sober humans don't generally claim to perceive more than three spatial
+dimensions but we can visualize higher-dimensional objects on computers to gain
+intuition about them. Witness (if you have WebGL) the four-dimensional
+<a href="http://en.wikipedia.org/wiki/Klein_bottle">Klein bottle</a>
+spinning below:
 </p>
 
 <div id="bottle"></div>
 
 <p>
-If your browser supports WebGL you should see a spinning Klein bottle above. It looks
-like it's morphing and passing through itself while it spins but that's
-actually just an artifact of displaying four dimensions on two. Morphing,
-at least, also occurs when you render three dimensions onto two: a cube's square
-faces only look square when you look at them straight on; at other angles they're
-distorted.
+It looks strange but is really just a step up from your garden variety
+<a href="http://en.wikipedia.org/wiki/Möbius_strip">Möbius strip</a>, a fellow
+one-sided surface more familiar to us for its frequent physical existence
+(photographic evidence from Wikipedia). You can construct a Möbius strip
+by adding a half twist to a 2d loop of paper, but only if you also add a
+third dimension for it to twist in. Similarly, a Klein bottle is just a 3d
+<a href="http://en.wikipedia.org/wiki/Torus">torus</a> (doughnut) with a
+half twist in a fourth dimension to join the inside and outside into a single
+edgeless side. The 
+<a href="https://github.com/adrianbg/n22d/blob/a763f3b60453b88c299f707a0683e32a99a23a8d/shapes.js#L30">Klein bottle function</a>
+I wrote does exactly this.
+</p>
+
+<div class="img">
+<a href="http://en.wikipedia.org/wiki/File:M%C3%B6bius_strip.jpg">
+<img src="klein-bottle/mobius.jpg" alt="Möbius strip" />
+</a>
+</div>
+
+<h2><a name="how-it-works" href="#how-it-works">How it Works</a></h2>
+
+<p>
+The visualization above is no mere
+<a href="http://en.wikipedia.org/wiki/Immersion_(mathematics)">immersion</a>
+into three dimensions like you see on Wikipedia and
+<a href="http://www.kleinbottle.com/">for sale online</a> but a bona fide
+4d 
+<a href="http://en.wikipedia.org/wiki/Triangle_mesh">triangle mesh</a>
+rotated and
+<a href="http://en.wikipedia.org/wiki/Orthographic_projection">projected</a>
+onto two dimensions for your viewing pleasure.
 </p>
 
 <p>
-After being rotated, the model is
-<a href="http://en.wikipedia.org/wiki/Orthographic_projection">Orthographically projected</a>
-onto two dimensions and shaded using a straightforward generalization of the
+That pleasure would be limited if the bottle weren't subsequently shaded to give
+visual cues to its curvature. In real life we do this with "lights" while
+on today's inadequate computer hardware we have to be satisfied simulating some
+common phenomena with the
 <a href="http://en.wikipedia.org/wiki/Phong_reflection_model">Phong reflection model</a>.
+As you can see in the fantastic image from Wikipedia below the diffuse
+component is the one that conveys all the geometrical information so I didn't
+bother with the specular component in the demo. Phong models surfaces as ideal
+<a href="http://en.wikipedia.org/wiki/Lambertian_reflection">Lambertian reflectors</a>,
+which scatter reflected light in every direction distributed in such a way that
+the surface appears to be illuminated equally from any angle. This is as opposed
+to specular (mirror-like) reflection which depends completely on your viewing
+angle.
+</p>
+
+<div class="img">
+<a href="http://en.wikipedia.org/wiki/File:Phong_components_version_4.png">
+<img src="klein-bottle/Phong_components_version_4.png" alt="Ambient, diffuse, and specular lighting" />
+</a>
+</div>
+
+<p>
+Due to the physics of illumination the reflected intensity factor for a
+Lambertian surface is \(cos \theta\) where \(\theta\) is the angle between the
+direction the light is travelling when it hits the surface, \(\hat{L}\), and the
+<em>surface normal</em> vector, \(\hat{N}\), which points straight into the
+surface (perpendicular to it). These vectors represent directions not
+lengths so we define them to be
+<a href="http://en.wikipedia.org/wiki/Unit_vector">unit vectors</a>
+\((|\hat{L}| = |\hat{N}| = 1)\) and use the geometrical interpretation of the
+<a href="http://en.wikipedia.org/wiki/Dot_product#Geometric_interpretation">dot product</a>
+to get the usual formula for diffuse light intensity in 3d:
+</p>
+
+$$cos \theta = |\hat{L}||\hat{N}|cos \theta = \hat{L} \cdot \hat{N}$$
+
+<p>
+In a universe of \(n > 3\) dimensions the situation is a little more
+complicated. The surface, though it may be bent and twisted in the \(n\)
+dimensions, is still a sort of two-dimensional object with no thickness to it,
+and the space of
+<a href="http://en.wikipedia.org/wiki/Tangent">tangent lines</a>, \(T\), at any point
+is a 2d plane. On the other hand the normal space, \(N\), of lines perpendicular
+to the surface at a particular point is the general counterpart to the normal
+vector in 3d and in a sense comprises the remainder of the dimensions in the
+universe not contained in the tangent space (ie. the two spaces are orthogonal compliments
+of each other). Thus the normal space is \((n-2)\)-dimensional: a line in 3d, a
+plane in 4d, a volume in 5d and so on. Now \(\theta\) is the angle between
+\(\hat{L}\) and \(N\) and the first step to computing its cosine is to split
+\(\hat{L}\) into two pieces by means of projections onto \(N\) and \(T\):
+</p>
+
+$$\hat{L} = \text{proj}_T \hat{L} + \text{proj}_N \hat{L}$$
+
+<p>
+\(T\) being orthogonal to \(N\), the two projections are also orthogonal and so
+make up a right-angled triangle with \(\hat{L}\) as
+the hypotenuse. An angle's cosine is the so-called "adjacent" side's length
+divided by that of the hypotenuse, ie.
+</p>
+
+$$cos \theta = \frac{|\text{proj}_N \hat{L}|}{|\hat{L}|} = |\text{proj}_N \hat{L}|$$
+
+<p>
+We may as well do that implicitly using the projection onto the tangent space
+since it is always only two dimensions instead of \(n-2\):
+</p>
+
+$$cos \theta = |\hat{L} - \text{proj}_T \hat{L}| $$
+
+<p>
+And that formula is
+<a href="https://github.com/adrianbg/n22d/blob/a763f3b60453b88c299f707a0683e32a99a23a8d/422d.js#L141">what happens in the vertex shader</a>.
 </p>
 
 <p>
-The details are in the <a href="https://github.com/adrianbg/n22d">source code</a>,
-which is free for any purpose (WTFPL).
-<a href="mailto:ag@tenfour.ag">Let me know</a> if you find it useful!
+There you have it! A way to visualize \(n\)-dimensional surfaces consistent with
+the usual way to visualize 3d surfaces. The practical applications and physical
+accuracy of this technique are unclear but I for one am eagerly awaiting 
+<a href="http://en.wikipedia.org/wiki/Portal_(video_game)">Portal \(n\)</a>.
+</p>
+
+<p>
+Check out the <a href="https://github.com/adrianbg/n22d">source code</a>,
+which is free for any purpose (WTFPL)
+and <a href="mailto:ag@tenfour.ag">let me know</a> if you find it useful!
+</p>
+
+<p class="shameless-plug">
+Better yet, check out my <a href="/portfolio">resume</a> and consider hiring me
+as a consultant!
 </p>
 </div>
 </body>
